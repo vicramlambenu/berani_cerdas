@@ -1,0 +1,17 @@
+services:
+  berani-cerdas-app:
+    build: .
+    container_name: berani_cerdas_hub
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Makassar # Set waktu container ke WITA
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"

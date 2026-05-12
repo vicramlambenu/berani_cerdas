@@ -1,0 +1,9 @@
+# Folder dependensi
+node_modules/
+
+# File rahasia (SANGAT PENTING)
+.env
+
+# File log dan cache
+npm-debug.log
+.DS_Store

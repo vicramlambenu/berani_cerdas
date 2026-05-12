@@ -1,0 +1,43 @@
+{
+  "name": "berani_cerdas",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+<<<<<<< HEAD
+    "test": "echo \"Error: no test specified\" && exit 1"
+=======
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+>>>>>>> af0544c (Initial commit: Bot Beasiswa Berani Cerdas)
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+<<<<<<< HEAD
+    "@supabase/supabase-js": "^2.105.1",
+    "axios": "^1.15.2",
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "node-telegram-bot-api": "^0.63.0"
+=======
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.105.1",
+    "axios": "^1.16.0",
+    "body-parser": "^2.2.2",
+    "dotenv": "^17.4.2",
+    "ejs": "^5.0.2",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "form-data": "^4.0.5",
+    "multer": "^2.1.1",
+    "mysql2": "^3.22.3",
+    "node-telegram-bot-api": "^0.67.0",
+    "telegraf": "^4.16.3"
+>>>>>>> af0544c (Initial commit: Bot Beasiswa Berani Cerdas)
+  }
+}
