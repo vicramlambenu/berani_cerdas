@@ -151,12 +151,13 @@ app.get('/', (req, res) => {
 // ==========================================
 // RUN EXPRESS SERVER ONLY
 // ==========================================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`
-=================================
-SERVER API & ADMIN PANEL AKTIF
-http://localhost:${PORT}
-=================================
-    `);
-});
+// Kondisional listen: Hanya menyala jika berjalan lokal di laptop, bukan di Vercel serverless
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 7860;
+    app.listen(PORT, () => {
+        console.log(`SERVER API & ADMIN PANEL AKTIF DI PORT ${PORT}`);
+    });
+}
+
+// WAJIB EKSPOR: Baris ini adalah kunci agar Serverless Vercel tidak crash 500
+module.exports = app;
