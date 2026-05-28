@@ -33,44 +33,59 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // ==========================================
-// ENV
+// ENV & SAFETY CHECK (Graceful Handling)
 // ==========================================
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-if (!TELEGRAM_TOKEN) {
-    throw new Error('Missing Telegram bot token: set TELEGRAM_TOKEN or TOKEN in .env');
-}
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error('Missing Supabase config: set SUPABASE_URL and SUPABASE_KEY in .env');
+// Deteksi jika env kosong tanpa melakukan 'throw' yang bisa membunuh serverless container
+if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("⚠️ [WARNING] Variabel lingkungan (.env) belum terkonfigurasi dengan lengkap di Vercel!");
 }
 
 // ==========================================
-// TELEGRAM BOT (Tetap diinstansiasi untuk keperluan Broadcast Admin)
+// TELEGRAM BOT (Diinstansiasi secara aman)
 // ==========================================
-const bot = new Telegraf(TELEGRAM_TOKEN);
+let bot;
+if (TELEGRAM_TOKEN) {
+    bot = new Telegraf(TELEGRAM_TOKEN);
+} else {
+    // Token dummy jika env belum terbaca, mencegah instansiasi Telegraf crash
+    bot = new Telegraf('123456789:PlaceholderTokenUntukMencegahErorCrash');
+}
 
 // ==========================================
 // SUPABASE
 // ==========================================
-const supabase = createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
-);
+let supabase;
+if (SUPABASE_URL && SUPABASE_KEY) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+    console.error("⚠️ Supabase Client gagal diinisialisasi karena URL/KEY kosong.");
+}
 
 // ==========================================
 // ADMIN ROUTES (Panel Web Admin & Broadcast)
 // ==========================================
-const adminRouter = setupAdminRoutes(supabase, bot);
-app.use('/admin', adminRouter);
+if (supabase) {
+    const adminRouter = setupAdminRoutes(supabase, bot);
+    app.use('/admin', adminRouter);
+} else {
+    app.use('/admin', (req, res) => {
+        res.status(500).send("Database belum terkonfigurasi di server.");
+    });
+}
 
 // ==========================================
 // OPENCLAW API GATEWAY ENDPOINT
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
+
+    if (!supabase) {
+        return res.status(500).json({ success: false, message: 'Database belum terkonfigurasi di server.' });
+    }
 
     try {
         const { data, error } = await supabase
@@ -101,7 +116,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
 
     } catch (err) {
         console.error('Server Internal Error:', err);
-        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server lokal.' });
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
     }
 });
 
