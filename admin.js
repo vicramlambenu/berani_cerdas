@@ -1,19 +1,18 @@
 const express = require('express');
 const multer = require('multer');
-const fs = require('fs');
 
 // ==========================================
-// MULTER CONFIG
+// MULTER CONFIG (Pindah ke MemoryStorage agar tidak crash di Vercel)
 // ==========================================
-const upload = multer({
-    dest: 'uploads/'
-});
+// Kita simpan berkas di RAM sementara, bukan di harddisk 'uploads/' lokal serverless
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 /**
  * Setup Admin Routes
  */
 function setupAdminRoutes(supabase, bot) {
-    const router = express.Router(); // Pindahkan ke dalam fungsi agar fresh
+    const router = express.Router(); 
 
     // ==========================================
     // MIDDLEWARE UNTUK CHECK LOGIN
@@ -39,7 +38,6 @@ function setupAdminRoutes(supabase, bot) {
     // ==========================================
     router.post('/do-login', (req, res) => {
         const { password } = req.body;
-        // Pastikan ADMIN_PASSWORD sudah ada di Secrets Hugging Face
         if (password === process.env.ADMIN_PASSWORD) {
             req.session.adminLoggedIn = true;
             res.redirect('/admin');
@@ -66,7 +64,7 @@ function setupAdminRoutes(supabase, bot) {
     });
 
     // ==========================================
-    // BROADCAST
+    // BROADCAST (Sudah di-patch untuk Serverless Environment)
     // ==========================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
@@ -85,27 +83,29 @@ function setupAdminRoutes(supabase, bot) {
 
             for (const user of users) {
                 try {
+                    // 1. Kirim Pesan Teks Broadcast
                     await bot.telegram.sendMessage(
                         user.chat_id,
                         `📢 *INFO TERBARU*\n\n${pesan}`,
                         { parse_mode: 'Markdown' }
                     );
 
+                    // 2. Kirim File/Dokumen jika ada (Membaca Buffer RAM, bukan File Lokal)
                     if (req.file) {
                         await bot.telegram.sendDocument(user.chat_id, {
-                            source: fs.createReadStream(req.file.path),
+                            source: req.file.buffer, // Membaca file dari memori RAM
                             filename: req.file.originalname
                         });
                     }
                     success++;
-                    await new Promise(r => setTimeout(r, 1500)); // Anti-spam
+                    await new Promise(r => setTimeout(r, 1500)); // Anti-spam 1.5 detik
                 } catch (err) {
                     failed++;
-                    console.log("Gagal kirim ke:", user.chat_id);
+                    console.log("Gagal kirim ke:", user.chat_id, err.message);
                 }
             }
 
-            if (req.file) fs.unlinkSync(req.file.path);
+            // Catatan: fs.unlinkSync dihapus karena tidak ada file fisik yang dibuat di harddisk
 
             res.render('admin/broadcast-result', {
                 success,
