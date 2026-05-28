@@ -78,6 +78,18 @@ if (supabase) {
 }
 
 // ==========================================
+// TELEGRAM WEBHOOK ENDPOINT (Fitur Baru 🤖)
+// ==========================================
+// Endpoint tempat server Telegram mengirimkan update chat dari user ke Vercel kamu
+app.post('/api/telegram-webhook', (req, res) => {
+    if (TELEGRAM_TOKEN && bot) {
+        bot.handleUpdate(req.body, res);
+    } else {
+        res.sendStatus(200);
+    }
+});
+
+// ==========================================
 // OPENCLAW API GATEWAY ENDPOINT
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
