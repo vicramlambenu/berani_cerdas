@@ -1,34 +1,10 @@
-<<<<<<< HEAD
-require("dotenv").config();
-
-const express = require("express");
-const session = require("express-session");
-
-const app = express();
-
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static("public"));
-
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false
-}));
-
-app.use("/", require("./routes/authRoutes"));
-app.use("/", require("./routes/dashboardRoutes"));
-app.use("/", require("./routes/broadcastRoutes"));
-
-app.listen(process.env.PORT, () => {
-  console.log("Running http://localhost:3000");
-});
-=======
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
+const session = require('express-session');
 const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ==========================================
 // IMPORT ADMIN ROUTES
@@ -43,18 +19,36 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use(session({
+    secret: process.env.ADMIN_PASSWORD || 'berani-cerdas-secret',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        secure: false,
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 // ==========================================
 // ENV
 // ==========================================
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-const ADMIN_ID = process.env.ADMIN_ID;
+if (!TELEGRAM_TOKEN) {
+    throw new Error('Missing Telegram bot token: set TELEGRAM_TOKEN or TOKEN in .env');
+}
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error('Missing Supabase config: set SUPABASE_URL and SUPABASE_KEY in .env');
+}
 
 // ==========================================
-// TELEGRAM BOT
+// TELEGRAM BOT (Tetap diinstansiasi untuk keperluan Broadcast Admin)
 // ==========================================
 const bot = new Telegraf(TELEGRAM_TOKEN);
 
@@ -67,369 +61,102 @@ const supabase = createClient(
 );
 
 // ==========================================
-// GEMINI
+// ADMIN ROUTES (Panel Web Admin & Broadcast)
 // ==========================================
-const genAI = new GoogleGenerativeAI(
-    GEMINI_API_KEY
-);
-
-// ==========================================
-// ADMIN ROUTES
-// ==========================================
-const adminRouter =
-    setupAdminRoutes(
-        supabase,
-        bot,
-        app
-    );
-
+const adminRouter = setupAdminRoutes(supabase, bot);
 app.use('/admin', adminRouter);
 
 // ==========================================
-// SYSTEM PROMPT
+// OPENCLAW API GATEWAY ENDPOINT
 // ==========================================
-const SYSTEM_INSTRUCTION = `
-Kamu adalah AI Assistant resmi Beasiswa Berani Cerdas.
-
-Informasi Beasiswa:
-- Nama: Beasiswa Berani Cerdas
-- IPK minimal: 3.00
-- Mahasiswa aktif
-- Upload KTM
-- Upload KHS
-- Deadline: 30 Mei 2026
-- Zona waktu WITA
-
-Aturan:
-- Jawab dengan ramah
-- Jawab singkat
-- Gunakan bahasa Indonesia
-- Jika tidak tahu jawaban:
-HUBUNGI_ADMIN
-`;
-
-// ==========================================
-// START BOT
-// ==========================================
-bot.start(async (ctx) => {
+app.get('/api/pendaftar/:nim', async (req, res) => {
+    const { nim } = req.params;
 
     try {
-
-        const user = ctx.from;
-
-        // ==========================================
-        // SAVE USER
-        // ==========================================
-        const { error } =
-            await supabase
-                .from('subscribers')
-                .upsert({
-                    chat_id: user.id.toString(),
-                    full_name: user.first_name,
-                    username: user.username || "-"
-                });
+        const { data, error } = await supabase
+            .from('pendaftar') 
+            .select('nama, nim, status_berkas, keterangan')
+            .eq('nim', nim)
+            .maybeSingle(); 
 
         if (error) {
-
-            console.log(error);
-
-            return ctx.reply(
-                "⚠️ Gagal menyimpan data."
-            );
-
+            console.error('Supabase Error:', error);
+            return res.status(500).json({ success: false, message: 'Gagal mengambil data database.' });
         }
 
-        // ==========================================
-        // WELCOME MESSAGE
-        // ==========================================
-        ctx.reply(`
-🎓 Selamat datang di Bot Resmi
-Beasiswa Berani Cerdas
-
-Menu Cepat:
-━━━━━━━━━━━━━━
-📌 Deadline
-📌 Persyaratan
-📌 Cara Daftar
-📌 Kontak Admin
-
-Silakan tanyakan sesuatu 😊
-        `);
-
-    } catch (err) {
-
-        console.log(err);
-
-        ctx.reply(
-            "⚠️ Terjadi kesalahan."
-        );
-
-    }
-
-});
-
-// ==========================================
-// BOT MESSAGE
-// ==========================================
-bot.on('text', async (ctx) => {
-
-    try {
-
-        const msg = ctx.message.text;
-        const userId = ctx.from.id.toString();
-
-        // ==========================================
-        // ABAIKAN COMMAND
-        // ==========================================
-        if (msg.startsWith('/')) return;
-
-        const lower =
-            msg.toLowerCase();
-
-        // ==========================================
-        // FAQ DEADLINE
-        // ==========================================
-        if (
-            lower.includes('deadline') ||
-            lower.includes('batas')
-        ) {
-
-            return ctx.reply(`
-📅 Deadline pendaftaran:
-30 Mei 2026
-            `);
-
-        }
-
-        // ==========================================
-        // FAQ SYARAT
-        // ==========================================
-        if (
-            lower.includes('syarat') ||
-            lower.includes('persyaratan')
-        ) {
-
-            return ctx.reply(`
-📄 Persyaratan:
-━━━━━━━━━━━━━━
-✅ Mahasiswa aktif
-✅ IPK minimal 3.00
-✅ Upload KTM
-✅ Upload KHS
-            `);
-
-        }
-
-        // ==========================================
-        // FAQ CARA DAFTAR
-        // ==========================================
-        if (
-            lower.includes('cara daftar') ||
-            lower.includes('pendaftaran')
-        ) {
-
-            return ctx.reply(`
-📝 Cara Daftar:
-━━━━━━━━━━━━━━
-1. Siapkan KTM
-2. Siapkan KHS
-3. Isi formulir
-4. Upload dokumen
-5. Tunggu verifikasi
-            `);
-
-        }
-
-        // ==========================================
-        // FAQ KONTAK
-        // ==========================================
-        if (
-            lower.includes('kontak') ||
-            lower.includes('admin')
-        ) {
-
-            return ctx.reply(`
-📞 Kontak Admin:
-0812xxxxxxxx
-            `);
-
-        }
-
-        // ==========================================
-        // TYPING
-        // ==========================================
-        await ctx.sendChatAction('typing');
-
-        // ==========================================
-        // GEMINI MODEL
-        // ==========================================
-        const model =
-            genAI.getGenerativeModel({
-                model: 'gemini-2.5-flash-lite'
+        if (!data) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'NIM tidak terdaftar dalam sistem Beasiswa Berani Cerdas.' 
             });
-
-        // ==========================================
-        // PROMPT
-        // ==========================================
-        const prompt = `
-${SYSTEM_INSTRUCTION}
-
-Pertanyaan user:
-${msg}
-        `;
-
-        // ==========================================
-        // AI GENERATE
-        // ==========================================
-        const result =
-            await model.generateContent(
-                prompt
-            );
-
-        const response =
-            await result.response;
-
-        const aiText =
-            response.text();
-
-        // ==========================================
-        // FORWARD TO ADMIN
-        // ==========================================
-        if (
-            aiText.includes(
-                'HUBUNGI_ADMIN'
-            )
-        ) {
-
-            await ctx.reply(`
-⚠️ Pertanyaan Anda akan diteruskan ke admin.
-            `);
-
-            await bot.telegram.sendMessage(
-                ADMIN_ID,
-                `
-📩 BANTUAN MANUAL
-
-👤 Nama:
-${ctx.from.first_name}
-
-🆔 User ID:
-${userId}
-
-❓ Pertanyaan:
-${msg}
-                `
-            );
-
-            return;
-
         }
 
-        // ==========================================
-        // SEND AI RESPONSE
-        // ==========================================
-        await ctx.reply(aiText);
+        return res.json({
+            success: true,
+            nama: data.nama,
+            nim: data.nim,
+            status_berkas: data.status_berkas,
+            keterangan: data.keterangan || 'Tidak ada catatan tambahan.'
+        });
 
     } catch (err) {
-
-        console.log(
-            "ERROR GEMINI:"
-        );
-
-        console.log(err.message);
-
-        // ==========================================
-        // QUOTA ERROR
-        // ==========================================
-        if (
-            err.message.includes('429') ||
-            err.message.includes('quota')
-        ) {
-
-            return ctx.reply(`
-⚠️ AI sedang mencapai batas penggunaan.
-
-Silakan coba beberapa menit lagi.
-            `);
-
-        }
-
-        // ==========================================
-        // GENERAL ERROR
-        // ==========================================
-        ctx.reply(`
-⚠️ Sistem sedang mengalami gangguan.
-        `);
-
+        console.error('Server Internal Error:', err);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server lokal.' });
     }
-
 });
 
 // ==========================================
-// HOME
+// HOME PAGE
 // ==========================================
 app.get('/', (req, res) => {
-
     res.send(`
-<h1>
-🎓 Beasiswa Berani Cerdas
-</h1>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beasiswa Berani Cerdas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+<div class="max-w-3xl w-full bg-slate-900/95 border border-slate-800 rounded-3xl shadow-2xl p-8">
+<header class="text-center mb-8">
+<p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Resmi</p>
+<h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa untuk mahasiswa aktif dengan IPK minimal 3.00. Dapatkan informasi lengkap melalui bot Telegram resmi kami.</p>
+</header>
 
-<p>
-Bot Telegram Aktif
-</p>
+<section class="grid gap-4 md:grid-cols-2 mb-8">
+<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
+<h2 class="text-xl font-bold text-cyan-300 mb-3">Status Bot</h2>
+<p class="text-slate-200">Bot Telegram aktif dan dihandle secara cerdas oleh OpenClaw Gateway.</p>
+</div>
 
-<p>
-Admin:
-<a href="/admin">
-/admin
-</a>
-</p>
+<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
+<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel</h2>
+<p class="text-slate-200">Akses panel admin jika Anda adalah pengelola.</p>
+<a href="/admin" class="inline-flex mt-4 items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Admin</a>
+</div>
+</section>
+
+<footer class="mt-10 text-center text-slate-500 text-sm">
+<p>Gunakan bot Telegram untuk menanyakan status pendaftaran beasiswa Anda secara real-time.</p>
+</footer>
+</div>
+</body>
+</html>
     `);
-
 });
 
 // ==========================================
-// RUN BOT
+// RUN EXPRESS SERVER ONLY
 // ==========================================
-bot.launch()
-    .then(() => {
-
-        console.log(`
-=================================
-BOT TELEGRAM ONLINE
-=================================
-        `);
-
-    });
-
-// ==========================================
-// RUN EXPRESS
-// ==========================================
-const PORT =
-    process.env.PORT || 3000;
-
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-
     console.log(`
 =================================
-SERVER AKTIF
+SERVER API & ADMIN PANEL AKTIF
 http://localhost:${PORT}
 =================================
     `);
-
 });
-
-// ==========================================
-// STOP BOT
-// ==========================================
-process.once(
-    'SIGINT',
-    () => bot.stop('SIGINT')
-);
-
-process.once(
-    'SIGTERM',
-    () => bot.stop('SIGTERM')
-);
->>>>>>> af0544c (Initial commit: Bot Beasiswa Berani Cerdas)

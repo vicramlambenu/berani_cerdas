@@ -1,20 +1,25 @@
-# Gunakan node versi stabil
-FROM node:20-slim
+FROM node:22
 
-# Set direktori kerja di dalam container
+# Install utilitas dasar untuk OpenClaw
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Install OpenClaw CLI secara global di server
+# Kunci instalasi pada versi stabil 2026.5.12 yang memiliki modul Telegram bawaan
+RUN npm install -g openclaw@2026.5.12
+
 WORKDIR /app
 
-# Salin file package.json dan package-lock.json
+# Install dependencies proyek Express
 COPY package*.json ./
+RUN npm install
 
-# Install dependensi (Telegraf, Express, Supabase, Gemini, dotenv)
-RUN npm install --production
-
-# Salin seluruh kode sumber aplikasi
+# Salin seluruh kodingan proyek kamu ke server
 COPY . .
 
-# Ekspos port sesuai variabel PORT di .env (default 3000)
-EXPOSE 3000
+# Berikan izin eksekusi penuh untuk script start.sh
+RUN chmod +x start.sh
 
-# Jalankan aplikasi
-CMD ["node", "server.js"]
+# Buka gerbang port sesuai standar Hugging Face
+EXPOSE 7860
+
+CMD ["./start.sh"]

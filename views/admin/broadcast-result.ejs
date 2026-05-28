@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Broadcast Result - Berani Cerdas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <div class="rounded-3xl bg-white p-8 shadow-2xl">
+      <div class="mb-6 flex items-center justify-center">
+        <div class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-green-600 text-5xl text-white">✅</div>
+      </div>
+      <h1 class="text-center text-3xl font-black text-slate-900 mb-2">Broadcast Selesai!</h1>
+      <p class="text-center text-slate-500 mb-8">Hasil pengiriman pesan ke user</p>
+
+      <div class="grid gap-4 sm:grid-cols-2 mb-8">
+        <div class="rounded-3xl bg-green-50 p-6 text-center">
+          <p class="text-sm font-semibold text-slate-600 mb-2">✅ Berhasil</p>
+          <p class="text-4xl font-black text-green-600"><%= success %></p>
+        </div>
+        <div class="rounded-3xl bg-red-50 p-6 text-center">
+          <p class="text-sm font-semibold text-slate-600 mb-2">❌ Gagal</p>
+          <p class="text-4xl font-black text-red-600"><%= failed %></p>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <div class="mb-3 flex items-center justify-between text-sm font-semibold text-slate-700">
+          <span>Success Rate</span>
+          <span class="text-blue-600"><%= successRate %>%</span>
+        </div>
+        <div class="h-3 overflow-hidden rounded-full bg-slate-200">
+          <div class="h-full bg-gradient-to-r from-green-400 to-green-600" style="width: <%= successRate %>%"></div>
+        </div>
+      </div>
+
+      <div class="rounded-3xl bg-blue-50 p-4 mb-8 text-slate-700">
+        <p class="text-sm font-semibold mb-2">📊 Detail Pengiriman</p>
+        <p class="text-xs">Total User: <%= users.length %></p>
+        <p class="text-xs">Berhasil: <%= success %></p>
+        <p class="text-xs">Gagal: <%= failed %></p>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <a href="/admin" class="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">🏠 Dashboard</a>
+        <a href="/admin/logout" class="inline-flex items-center justify-center rounded-2xl bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-300">🚪 Logout</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
