@@ -39,19 +39,18 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-// Deteksi jika env kosong tanpa melakukan 'throw' yang bisa membunuh serverless container
+// Deteksi jika env kosong tanpa melakukan 'throw' yang bisa membunuh serverless container Vercel
 if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
     console.error("⚠️ [WARNING] Variabel lingkungan (.env) belum terkonfigurasi dengan lengkap di Vercel!");
 }
 
 // ==========================================
-// TELEGRAM BOT (Diinstansiasi secara aman)
+// TELEGRAM BOT (Diinstansiasi untuk keperluan Broadcast di Web Admin)
 // ==========================================
 let bot;
 if (TELEGRAM_TOKEN) {
     bot = new Telegraf(TELEGRAM_TOKEN);
 } else {
-    // Token dummy jika env belum terbaca, mencegah instansiasi Telegraf crash
     bot = new Telegraf('123456789:PlaceholderTokenUntukMencegahErorCrash');
 }
 
@@ -73,25 +72,14 @@ if (supabase) {
     app.use('/admin', adminRouter);
 } else {
     app.use('/admin', (req, res) => {
-        res.status(500).send("Database belum terkonfigurasi di server.");
+        res.status(500).send("Database belum terkonfigurasi di server Vercel.");
     });
 }
 
 // ==========================================
-// TELEGRAM WEBHOOK ENDPOINT (Fitur Baru 🤖)
+// OPENCLAW API GATEWAY ENDPOINT 🚀
 // ==========================================
-// Endpoint tempat server Telegram mengirimkan update chat dari user ke Vercel kamu
-app.post('/api/telegram-webhook', (req, res) => {
-    if (TELEGRAM_TOKEN && bot) {
-        bot.handleUpdate(req.body, res);
-    } else {
-        res.sendStatus(200);
-    }
-});
-
-// ==========================================
-// OPENCLAW API GATEWAY ENDPOINT
-// ==========================================
+// Endpoint utama yang akan ditembak/dipanggil oleh OpenClaw Gateway untuk mengecek NIM
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
 
@@ -103,7 +91,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
         const { data, error } = await supabase
             .from('pendaftar') 
             .select('nama, nim, status_berkas, keterangan')
-            .eq('nim', nim)
+            .eq('nim', nim.toUpperCase()) // Pastikan NIM selalu kapital saat dicari ke DB
             .maybeSingle(); 
 
         if (error) {
@@ -114,10 +102,11 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
         if (!data) {
             return res.status(404).json({ 
                 success: false, 
-                message: 'NIM tidak terdaftar dalam sistem Beasiswa Berani Cerdas.' 
+                message: `NIM ${nim.toUpperCase()} tidak ditemukan dalam sistem pendaftaran Beasiswa Berani Cerdas.` 
             });
         }
 
+        // Kembalikan data dalam bentuk JSON bersih ke OpenClaw
         return res.json({
             success: true,
             nama: data.nama,
@@ -128,7 +117,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
 
     } catch (err) {
         console.error('Server Internal Error:', err);
-        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server Vercel.' });
     }
 });
 
@@ -150,24 +139,24 @@ app.get('/', (req, res) => {
 <header class="text-center mb-8">
 <p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Resmi</p>
 <h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
-<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa untuk mahasiswa aktif dengan IPK minimal 3.00. Dapatkan informasi lengkap melalui bot Telegram resmi kami.</p>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa untuk mahasiswa JTI UNTAD. Proses pengecekan data ditangani secara cerdas oleh OpenClaw Gateway.</p>
 </header>
 
 <section class="grid gap-4 md:grid-cols-2 mb-8">
 <div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
-<h2 class="text-xl font-bold text-cyan-300 mb-3">Status Bot</h2>
-<p class="text-slate-200">Bot Telegram aktif dan dihandle secara cerdas oleh OpenClaw Gateway.</p>
+<h2 class="text-xl font-bold text-cyan-300 mb-3">Gateway System</h2>
+<p class="text-slate-200">API Terhubung. Sistem bot dihandle oleh OpenClaw Gateway.</p>
 </div>
 
 <div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
 <h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel</h2>
-<p class="text-slate-200">Akses panel admin jika Anda adalah pengelola.</p>
+<p class="text-slate-200">Akses panel admin manajemen beasiswa.</p>
 <a href="/admin" class="inline-flex mt-4 items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Admin</a>
 </div>
 </section>
 
 <footer class="mt-10 text-center text-slate-500 text-sm">
-<p>Gunakan bot Telegram untuk menanyakan status pendaftaran beasiswa Anda secara real-time.</p>
+<p>Gunakan bot Telegram OpenClaw untuk memeriksa status pendaftaran Anda secara real-time.</p>
 </footer>
 </div>
 </body>
@@ -176,9 +165,8 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// RUN EXPRESS SERVER ONLY
+// RUN EXPRESS SERVER ONLY (Kondisional Lokal)
 // ==========================================
-// Kondisional listen: Hanya menyala jika berjalan lokal di laptop, bukan di Vercel serverless
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 7860;
     app.listen(PORT, () => {
@@ -186,5 +174,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// WAJIB EKSPOR: Baris ini adalah kunci agar Serverless Vercel tidak crash 500
+// EKSPOR KE ENGINE VERCEL NODE
 module.exports = app;
