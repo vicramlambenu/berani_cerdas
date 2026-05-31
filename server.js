@@ -5,8 +5,6 @@ const express = require('express');
 const session = require('express-session');
 const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
-// 🌟 IMPORT LIBRARY GOOGLE GEN AI TERBARU
-const { GoogleGenAI } = require('@google/generative-ai');
 
 // ==========================================
 // IMPORT ADMIN ROUTES (Dengan Melemparkan Fungsi Log)
@@ -46,7 +44,7 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 // ==========================================
-// TELEGRAM BOT (Inisialisasi Aman)
+// TELEGRAM BOT (Hanya Untuk Start & Help Sederhana)
 // ==========================================
 let bot;
 if (TELEGRAM_TOKEN) {
@@ -82,10 +80,9 @@ async function catatLog(operator, role, aksi) {
 }
 
 // ==========================================
-// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (FULLY AUTOMATED AI - TANPA DIATUR IF-ELSE)
+// 🤖 BOT COMMANDS (SABUTAN AWAL SAJA)
 // ==========================================
 if (TELEGRAM_TOKEN && bot && supabase) {
-    
     bot.start(async (ctx) => {
         const chatId = ctx.chat.id;
         const firstName = ctx.from.first_name || 'Mahasiswa';
@@ -98,97 +95,16 @@ if (TELEGRAM_TOKEN && bot && supabase) {
 
         ctx.replyWithMarkdown(
             `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas JTI UNTAD! 🎓\n\n` +
-            `Silakan tanyakan apa saja seputar beasiswa, atau ketik langsung NIM kamu. AI kami akan mendeteksi dan menjawabnya secara otomatis tanpa menu kaku!`
+            `Silakan ketik NIM Anda untuk cek status berkas, atau tanyakan apa saja. AI OpenClaw akan langsung merespons secara otomatis!`
         );
     });
 
     bot.help((ctx) => {
-        ctx.replyWithMarkdown(`Tanyakan informasi beasiswa atau kirimkan NIM kamu langsung di sini. AI akan merespons secara otomatis.`);
+        ctx.replyWithMarkdown(`Ketik NIM Anda atau kirim pertanyaan seputar beasiswa secara langsung.`);
     });
 
-    // 🌟 JALUR FULL OTOMATIS AI GEMINI MENGGUNAKAN FUNCTION CALLING
-    bot.on('text', async (ctx) => {
-        const text = ctx.message.text.trim();
-
-        try {
-            if (!process.env.GEMINI_API_KEY) {
-                return ctx.reply('Maaf, modul kecerdasan AI belum dikonfigurasi.');
-            }
-
-            // 1. Ambil Knowledge Base dan Aturan dari Database yang diinput Admin
-            const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
-            const systemInstruction = config?.system_instruction || 'Kamu adalah AI Admin resmi Beasiswa Berani Cerdas.';
-            const knowledgeBase = config?.knowledge_base || '';
-
-            // 2. Deklarasikan Fungsi Alat (Tool) Supabase agar AI bisa mengambil data pendaftar lewat NIM secara mandiri
-            const ambilDataPendaftarAlat = {
-                name: "ambilDataPendaftar",
-                description: "Fungsi otomatis untuk mengambil data status berkas pendaftar beasiswa dari database berdasarkan NIM mahasiswa.",
-                parameters: {
-                    type: "OBJECT",
-                    properties: {
-                        nim: {
-                            type: "STRING",
-                            description: "Nomor Induk Mahasiswa (NIM) yang diketik oleh user, contoh: F55122001",
-                        },
-                    },
-                    required: ["nim"],
-                },
-            };
-
-            // 3. Inisialisasi Model Utama Gemini 2.0 Flash Lite
-            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-            const model = ai.getGenerativeModel({ 
-                model: "gemini-2.0-flash-lite", 
-                systemInstruction: `${systemInstruction}\n\n[KNOWLEDGE BASE DATA REFERENSI]:\n${knowledgeBase}`
-            });
-
-            // Mulai sesi obrolan dengan menyertakan tool database pendaftar
-            const chat = model.startChat({
-                tools: [{ functionDeclarations: [ambilDataPendaftarAlat] }],
-            });
-
-            const result = await chat.sendMessage(text);
-            const functionCalls = result.response.functionCalls;
-
-            // 4. AUTOMATED ROUTING: Jika AI mendeteksi user menginput NIM, jalankan pencarian ke database
-            if (functionCalls && functionCalls[0].name === "ambilDataPendaftar") {
-                const nimTarget = functionCalls[0].args.nim.toUpperCase();
-                
-                const { data, error } = await supabase
-                    .from('pendaftar')
-                    .select('nama, nim, status_berkas, keterangan')
-                    .eq('nim', nimTarget)
-                    .maybeSingle();
-
-                let hasilDatabase = "";
-                if (error) {
-                    hasilDatabase = "Gagal mengakses database pendaftar.";
-                } else if (!data) {
-                    hasilDatabase = `NIM ${nimTarget} tidak ditemukan dalam database pendaftar beasiswa.`;
-                } else {
-                    hasilDatabase = `Data Ditemukan! Nama: ${data.nama}, NIM: ${data.nim}, Status Berkas: ${data.status_berkas}, Keterangan: ${data.keterangan || 'Tidak ada.'}`;
-                }
-
-                // Berikan balik hasil dari database ke AI agar dirangkai menjadi teks jawaban yang natural
-                const tanggapanBalikAI = await chat.sendMessage([{
-                    functionResponse: {
-                        name: "ambilDataPendaftar",
-                        response: { result: hasilDatabase }
-                    }
-                }]);
-
-                return ctx.replyWithMarkdown(tanggapanBalikAI.response.text());
-            }
-
-            // 5. JALUR UMUM: Jika user cuma menyapa atau bertanya biasa, AI langsung menjawab normal menggunakan Knowledge Base
-            return ctx.replyWithMarkdown(result.response.text());
-
-        } catch (err) {
-            console.error('Error Otomatisasi AI Telegram:', err.message);
-            return ctx.reply('Halo! Ada yang bisa saya bantu terkait berkas pendaftaran beasiswa Anda?');
-        }
-    });
+    // 🛑 KODE BOT.ON('TEXT') YANG MANUAL DAN BENTROK SUDAH DIHAPUS TOTAL DI SINI!
+    // Karena penanganan teks chat sepenuhnya diambil alih oleh engine otomatis OpenClaw Gateway.
 }
 
 // ==========================================
@@ -218,7 +134,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 });
 
 // ==========================================
-// 🚪 PINTU GATEWAY OPENCLAW 1: (AMBIL NIM)
+// 🚪 PINTU GATEWAY OPENCLAW 1: AMBIL DATA JALUR NIM
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
@@ -249,47 +165,24 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
 });
 
 // ==========================================
-// 🚪 PINTU GATEWAY OPENCLAW 2: CHAT AI KNOWLEDGE BASE DINAMIS
+// 🚪 PINTU GATEWAY OPENCLAW 2: CHAT AI UTAMA VIA OPENCLAW ENGINE
 // ==========================================
 app.post('/api/ai-chat', async (req, res) => {
     const { pesan } = req.body; 
-
-    if (!pesan) {
-        return res.status(400).json({ success: false, message: 'Pesan tidak boleh kosong.' });
-    }
+    if (!pesan) return res.status(400).json({ success: false, message: 'Pesan kosong.' });
 
     try {
-        if (!process.env.GEMINI_API_KEY) {
-            return res.json({ success: true, balasan: 'Halo! Silakan masukkan NIM Anda untuk mengecek status berkas.' });
-        }
+        const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
 
-        const { data: config, error: configError } = await supabase
-            .from('ai_config')
-            .select('system_instruction, knowledge_base')
-            .eq('id', 1)
-            .single();
-
-        if (configError) throw configError;
-
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
-
-        const finalPrompt = 
-            `${config.system_instruction}\n\n` +
-            `[KNOWLEDGE BASE DATA REFERENSI]:\n${config.knowledge_base}\n\n` +
-            `Pesan mahasiswa yang masuk lewat OpenClaw Gateway: "${pesan}"`;
-
-        const result = await model.generateContent(finalPrompt);
-        const responseText = result.response.text();
-
+        // Pintu ini otomatis mendengarkan kiriman dari ekosistem OpenClaw kamu
         return res.json({
             success: true,
-            balasan: responseText
+            system_instruction: config?.system_instruction,
+            knowledge_base: config?.knowledge_base,
+            model_target: "gemini-2.0-flash-lite"
         });
-
     } catch (err) {
-        console.error('Gagal memanggil Gemini via OpenClaw:', err.message);
-        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada modul Inteligensia AI.' });
+        return res.status(500).json({ success: false, message: 'OpenClaw API Error.' });
     }
 });
 
@@ -311,11 +204,11 @@ app.get('/', (req, res) => {
 <header class="text-center mb-8">
 <p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Kelompok 7</p>
 <h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
-<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD. Sistem bot berjalan terintegrasi dengan OpenClaw Gateway.</p>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD terintegrasi OpenClaw Gateway.</p>
 </header>
 <div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6 text-center">
 <h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel (Multi-Role Login)</h2>
-<p class="text-slate-200 text-sm mb-4">Kepala Admin & Admin dapat mengelola pendaftar, melihat log audit, dan memodifikasi instruksi Knowledge Base AI.</p>
+<p class="text-slate-200 text-sm mb-4">Kelola pendaftar, lihat log audit, dan modifikasi instruksi Knowledge Base AI.</p>
 <a href="/admin" class="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Dashboard</a>
 </div>
 </div>
@@ -324,14 +217,10 @@ app.get('/', (req, res) => {
     `);
 });
 
-// ==========================================
-// RUN EXPRESS SERVER ONLY
-// ==========================================
+// RUN SERVER
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 7860;
-    app.listen(PORT, () => {
-        console.log(`SERVER AKTIF DI PORT ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`SERVER AKTIF DI PORT ${PORT}`));
 }
 
 module.exports = app;
