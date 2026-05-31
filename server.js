@@ -82,7 +82,7 @@ async function catatLog(operator, role, aksi) {
 }
 
 // ==========================================
-// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (FULLY AUTOMATED CLOUD AI)
+// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (FULLY AUTOMATED AI - TANPA DIATUR IF-ELSE)
 // ==========================================
 if (TELEGRAM_TOKEN && bot && supabase) {
     
@@ -98,15 +98,15 @@ if (TELEGRAM_TOKEN && bot && supabase) {
 
         ctx.replyWithMarkdown(
             `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas JTI UNTAD! 🎓\n\n` +
-            `Silakan tanyakan apa saja seputar beasiswa, atau ketik langsung *NIM* kamu untuk memeriksa status berkas secara otomatis.`
+            `Silakan tanyakan apa saja seputar beasiswa, atau ketik langsung NIM kamu. AI kami akan mendeteksi dan menjawabnya secara otomatis tanpa menu kaku!`
         );
     });
 
     bot.help((ctx) => {
-        ctx.replyWithMarkdown(`Tanyakan informasi beasiswa atau kirimkan *NIM* kamu langsung di sini. AI akan menjawab secara otomatis.`);
+        ctx.replyWithMarkdown(`Tanyakan informasi beasiswa atau kirimkan NIM kamu langsung di sini. AI akan merespons secara otomatis.`);
     });
 
-    // 🌟 FULLY AUTOMATED AI JALUR: Menggunakan Gemini Function Calling (Tools)
+    // 🌟 JALUR FULL OTOMATIS AI GEMINI MENGGUNAKAN FUNCTION CALLING
     bot.on('text', async (ctx) => {
         const text = ctx.message.text.trim();
 
@@ -120,16 +120,16 @@ if (TELEGRAM_TOKEN && bot && supabase) {
             const systemInstruction = config?.system_instruction || 'Kamu adalah AI Admin resmi Beasiswa Berani Cerdas.';
             const knowledgeBase = config?.knowledge_base || '';
 
-            // 2. Deklarasikan Fungsi Alat (Tool) Supabase agar AI bisa memanggil data pendaftar lewat NIM
+            // 2. Deklarasikan Fungsi Alat (Tool) Supabase agar AI bisa mengambil data pendaftar lewat NIM secara mandiri
             const ambilDataPendaftarAlat = {
                 name: "ambilDataPendaftar",
-                description: "Fungsi otomatis untuk mengambil status berkas pendaftar beasiswa dari database berdasarkan NIM mahasiswa.",
+                description: "Fungsi otomatis untuk mengambil data status berkas pendaftar beasiswa dari database berdasarkan NIM mahasiswa.",
                 parameters: {
                     type: "OBJECT",
                     properties: {
                         nim: {
                             type: "STRING",
-                            description: "Nomor Induk Mahasiswa (NIM) yang dikirim user, contoh: F55122001",
+                            description: "Nomor Induk Mahasiswa (NIM) yang diketik oleh user, contoh: F55122001",
                         },
                     },
                     required: ["nim"],
@@ -143,7 +143,7 @@ if (TELEGRAM_TOKEN && bot && supabase) {
                 systemInstruction: `${systemInstruction}\n\n[KNOWLEDGE BASE DATA REFERENSI]:\n${knowledgeBase}`
             });
 
-            // Mulai interaksi chat dengan menyertakan tool database
+            // Mulai sesi obrolan dengan menyertakan tool database pendaftar
             const chat = model.startChat({
                 tools: [{ functionDeclarations: [ambilDataPendaftarAlat] }],
             });
@@ -151,7 +151,7 @@ if (TELEGRAM_TOKEN && bot && supabase) {
             const result = await chat.sendMessage(text);
             const functionCalls = result.response.functionCalls;
 
-            // 4. JALUR OTOMATIS: Jika AI mendeteksi input NIM, jalankan pencarian ke tabel 'pendaftar'
+            // 4. AUTOMATED ROUTING: Jika AI mendeteksi user menginput NIM, jalankan pencarian ke database
             if (functionCalls && functionCalls[0].name === "ambilDataPendaftar") {
                 const nimTarget = functionCalls[0].args.nim.toUpperCase();
                 
@@ -165,12 +165,12 @@ if (TELEGRAM_TOKEN && bot && supabase) {
                 if (error) {
                     hasilDatabase = "Gagal mengakses database pendaftar.";
                 } else if (!data) {
-                    hasilDatabase = `NIM ${nimTarget} tidak ditemukan dalam database pendaftar.`;
+                    hasilDatabase = `NIM ${nimTarget} tidak ditemukan dalam database pendaftar beasiswa.`;
                 } else {
-                    hasilDatabase = `Data Ditemukan. Nama: ${data.nama}, NIM: ${data.nim}, Status Berkas: ${data.status_berkas}, Keterangan: ${data.keterangan || 'Tidak ada.'}`;
+                    hasilDatabase = `Data Ditemukan! Nama: ${data.nama}, NIM: ${data.nim}, Status Berkas: ${data.status_berkas}, Keterangan: ${data.keterangan || 'Tidak ada.'}`;
                 }
 
-                // Berikan hasil database kembali ke AI agar dirangkai menjadi jawaban natural
+                // Berikan balik hasil dari database ke AI agar dirangkai menjadi teks jawaban yang natural
                 const tanggapanBalikAI = await chat.sendMessage([{
                     functionResponse: {
                         name: "ambilDataPendaftar",
@@ -181,12 +181,12 @@ if (TELEGRAM_TOKEN && bot && supabase) {
                 return ctx.replyWithMarkdown(tanggapanBalikAI.response.text());
             }
 
-            // 5. JALUR NORMAL: Jika user bertanya biasa, AI langsung merespons menggunakan Knowledge Base
+            // 5. JALUR UMUM: Jika user cuma menyapa atau bertanya biasa, AI langsung menjawab normal menggunakan Knowledge Base
             return ctx.replyWithMarkdown(result.response.text());
 
         } catch (err) {
             console.error('Error Otomatisasi AI Telegram:', err.message);
-            return ctx.reply('Halo! Silakan masukkan NIM Anda untuk mengecek status berkas pendaftaran.');
+            return ctx.reply('Halo! Ada yang bisa saya bantu terkait berkas pendaftaran beasiswa Anda?');
         }
     });
 }
@@ -204,7 +204,7 @@ if (supabase) {
 }
 
 // ==========================================
-// TELEGRAM WEBHOOK ENDPOINT (JALUR VERCEL ONLINE)
+// TELEGRAM WEBHOOK ENDPOINT
 // ==========================================
 app.post('/api/telegram-webhook', async (req, res) => {
     try {
