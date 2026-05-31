@@ -66,7 +66,7 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 // ==========================================
-// 📜 1. UTILITY: FUNGSI PENCATATAN LOG OTOMATIS (Catatan Hasil Pertemuan 31-05-2026.docx)
+// 📜 1. UTILITY: FUNGSI PENCATATAN LOG OTOMATIS
 // ==========================================
 async function catatLog(operator, role, aksi) {
     if (!supabase) return;
@@ -82,7 +82,7 @@ async function catatLog(operator, role, aksi) {
 }
 
 // ==========================================
-// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (LANGSUNG DARI HP)
+// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (FULLY AUTOMATED CLOUD AI)
 // ==========================================
 if (TELEGRAM_TOKEN && bot && supabase) {
     
@@ -98,68 +98,95 @@ if (TELEGRAM_TOKEN && bot && supabase) {
 
         ctx.replyWithMarkdown(
             `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas JTI UNTAD! 🎓\n\n` +
-            `Untuk mengecek status berkas pendaftaran beasiswa kamu, silakan ketik langsung *NIM* kamu.\n\n` +
-            `Contoh: \`F55122001\``
+            `Silakan tanyakan apa saja seputar beasiswa, atau ketik langsung *NIM* kamu untuk memeriksa status berkas secara otomatis.`
         );
     });
 
     bot.help((ctx) => {
-        ctx.replyWithMarkdown(`Kirimkan *NIM* kamu (contoh: \`F55122001\`) untuk mengecek status seleksi beasiswa secara real-time.`);
+        ctx.replyWithMarkdown(`Tanyakan informasi beasiswa atau kirimkan *NIM* kamu langsung di sini. AI akan menjawab secara otomatis.`);
     });
 
-    // Proses membaca pesan teks mahasiswa (Direct Telegram Handling)
+    // 🌟 FULLY AUTOMATED AI JALUR: Menggunakan Gemini Function Calling (Tools)
     bot.on('text', async (ctx) => {
         const text = ctx.message.text.trim();
-        const nimRegex = /^[A-Z][0-9]{3}[0-9]+/i; 
 
-        if (nimRegex.test(text)) {
-            // 🚪 PINTU PERTAMA LANGSUNG: JIKA INPUT NIM
-            await ctx.reply('🔎 Sedang mengecek data Anda di database Supabase, mohon tunggu...');
-            try {
+        try {
+            if (!process.env.GEMINI_API_KEY) {
+                return ctx.reply('Maaf, modul kecerdasan AI belum dikonfigurasi.');
+            }
+
+            // 1. Ambil Knowledge Base dan Aturan dari Database yang diinput Admin
+            const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
+            const systemInstruction = config?.system_instruction || 'Kamu adalah AI Admin resmi Beasiswa Berani Cerdas.';
+            const knowledgeBase = config?.knowledge_base || '';
+
+            // 2. Deklarasikan Fungsi Alat (Tool) Supabase agar AI bisa memanggil data pendaftar lewat NIM
+            const ambilDataPendaftarAlat = {
+                name: "ambilDataPendaftar",
+                description: "Fungsi otomatis untuk mengambil status berkas pendaftar beasiswa dari database berdasarkan NIM mahasiswa.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        nim: {
+                            type: "STRING",
+                            description: "Nomor Induk Mahasiswa (NIM) yang dikirim user, contoh: F55122001",
+                        },
+                    },
+                    required: ["nim"],
+                },
+            };
+
+            // 3. Inisialisasi Model Utama Gemini 2.0 Flash Lite
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            const model = ai.getGenerativeModel({ 
+                model: "gemini-2.0-flash-lite", 
+                systemInstruction: `${systemInstruction}\n\n[KNOWLEDGE BASE DATA REFERENSI]:\n${knowledgeBase}`
+            });
+
+            // Mulai interaksi chat dengan menyertakan tool database
+            const chat = model.startChat({
+                tools: [{ functionDeclarations: [ambilDataPendaftarAlat] }],
+            });
+
+            const result = await chat.sendMessage(text);
+            const functionCalls = result.response.functionCalls;
+
+            // 4. JALUR OTOMATIS: Jika AI mendeteksi input NIM, jalankan pencarian ke tabel 'pendaftar'
+            if (functionCalls && functionCalls[0].name === "ambilDataPendaftar") {
+                const nimTarget = functionCalls[0].args.nim.toUpperCase();
+                
                 const { data, error } = await supabase
                     .from('pendaftar')
                     .select('nama, nim, status_berkas, keterangan')
-                    .eq('nim', text.toUpperCase())
+                    .eq('nim', nimTarget)
                     .maybeSingle();
 
-                if (error) throw error;
-                if (!data) {
-                    return ctx.replyWithMarkdown(`❌ NIM *${text.toUpperCase()}* tidak ditemukan dalam database.`);
+                let hasilDatabase = "";
+                if (error) {
+                    hasilDatabase = "Gagal mengakses database pendaftar.";
+                } else if (!data) {
+                    hasilDatabase = `NIM ${nimTarget} tidak ditemukan dalam database pendaftar.`;
+                } else {
+                    hasilDatabase = `Data Ditemukan. Nama: ${data.nama}, NIM: ${data.nim}, Status Berkas: ${data.status_berkas}, Keterangan: ${data.keterangan || 'Tidak ada.'}`;
                 }
 
-                return ctx.replyWithMarkdown(
-                    `🎓 *DATA PENDAFTAR BEASISWA*\n\n` +
-                    `👤 *Nama:* ${data.nama}\n` +
-                    `🆔 *NIM:* ${data.nim}\n` +
-                    `📋 *Status Berkas:* _${data.status_berkas}_\n` +
-                    `📝 *Keterangan:* ${data.keterangan || 'Tidak ada catatan tambahan.'}`
-                );
-            } catch (err) {
-                return ctx.reply('⚠️ Terjadi kesalahan internal saat mengakses database.');
+                // Berikan hasil database kembali ke AI agar dirangkai menjadi jawaban natural
+                const tanggapanBalikAI = await chat.sendMessage([{
+                    functionResponse: {
+                        name: "ambilDataPendaftar",
+                        response: { result: hasilDatabase }
+                    }
+                }]);
+
+                return ctx.replyWithMarkdown(tanggapanBalikAI.response.text());
             }
-        } else {
-            // 🚪 PINTU KEDUA LANGSUNG: CHAT AI GEMINI MENGGUNAKAN KONFIGURASI SUPABASE
-            try {
-                if (!process.env.GEMINI_API_KEY) {
-                    return ctx.reply('Halo! Silakan masukkan NIM Anda untuk mengecek status beasiswa.');
-                }
 
-                // Ambil Knowledgebase terbaru yang disimpan admin dari DB
-                const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
+            // 5. JALUR NORMAL: Jika user bertanya biasa, AI langsung merespons menggunakan Knowledge Base
+            return ctx.replyWithMarkdown(result.response.text());
 
-                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-                const model = ai.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-
-                const finalPrompt = 
-                    `${config?.system_instruction || 'Kamu adalah AI Admin resmi Beasiswa Berani Cerdas.'}\n\n` +
-                    `[KNOWLEDGE BASE ATURAN]:\n${config?.knowledge_base || ''}\n\n` +
-                    `Pertanyaan mahasiswa: "${text}"`;
-
-                const result = await model.generateContent(finalPrompt);
-                return ctx.replyWithMarkdown(result.response.text());
-            } catch (aiErr) {
-                return ctx.reply('Halo! Silakan kirimkan NIM Anda untuk memeriksa status berkas.');
-            }
+        } catch (err) {
+            console.error('Error Otomatisasi AI Telegram:', err.message);
+            return ctx.reply('Halo! Silakan masukkan NIM Anda untuk mengecek status berkas pendaftaran.');
         }
     });
 }
@@ -168,7 +195,6 @@ if (TELEGRAM_TOKEN && bot && supabase) {
 // ADMIN ROUTES (Mendukung Login Username, Multi-role, dan Log)
 // ==========================================
 if (supabase) {
-    // Memasukkan fungsi catatLog agar rute web admin bisa mencatat log sistem
     const adminRouter = setupAdminRoutes(supabase, bot, catatLog);
     app.use('/admin', adminRouter);
 } else {
@@ -178,7 +204,7 @@ if (supabase) {
 }
 
 // ==========================================
-// TELEGRAM WEBHOOK ENDPOINT
+// TELEGRAM WEBHOOK ENDPOINT (JALUR VERCEL ONLINE)
 // ==========================================
 app.post('/api/telegram-webhook', async (req, res) => {
     try {
@@ -192,7 +218,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
 });
 
 // ==========================================
-// 🚪 PINTU PERTAMA: OPENCLAW API GATEWAY ENDPOINT (AMBIL NIM)
+// 🚪 PINTU GATEWAY OPENCLAW 1: (AMBIL NIM)
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
@@ -223,7 +249,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
 });
 
 // ==========================================
-// 🚪 PINTU KEDUA: JALUR API OPENCLAW DENGAN KNOWLEDGE BASE DINAMIS (Catatan 3)
+// 🚪 PINTU GATEWAY OPENCLAW 2: CHAT AI KNOWLEDGE BASE DINAMIS
 // ==========================================
 app.post('/api/ai-chat', async (req, res) => {
     const { pesan } = req.body; 
@@ -237,7 +263,6 @@ app.post('/api/ai-chat', async (req, res) => {
             return res.json({ success: true, balasan: 'Halo! Silakan masukkan NIM Anda untuk mengecek status berkas.' });
         }
 
-        // 🌟 AMBIL KNOWLEDGE BASE & INSTRUKSI YANG DIEDIT ADMIN SECARA REAL-TIME (Catatan 3)
         const { data: config, error: configError } = await supabase
             .from('ai_config')
             .select('system_instruction, knowledge_base')
@@ -249,7 +274,6 @@ app.post('/api/ai-chat', async (req, res) => {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
-        // Gabungkan Instruksi + Basis Pengetahuan Dinamis dari Database hasil inputan Admin
         const finalPrompt = 
             `${config.system_instruction}\n\n` +
             `[KNOWLEDGE BASE DATA REFERENSI]:\n${config.knowledge_base}\n\n` +
