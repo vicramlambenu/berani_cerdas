@@ -4,18 +4,17 @@ const multer = require('multer');
 // ==========================================
 // MULTER CONFIG (Pindah ke MemoryStorage agar tidak crash di Vercel)
 // ==========================================
-// Kita simpan berkas di RAM sementara, bukan di harddisk 'uploads/' lokal serverless
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
- * Setup Admin Routes
+ * Setup Admin Routes (Mendukung Multi-role, Log Sistem, dan Knowledge Base AI)
  */
-function setupAdminRoutes(supabase, bot) {
+function setupAdminRoutes(supabase, bot, catatLog) {
     const router = express.Router(); 
 
     // ==========================================
-    // MIDDLEWARE UNTUK CHECK LOGIN
+    // MIDDLEWARE UNTUK CHECK LOGIN & USER DATA
     // ==========================================
     const checkLogin = (req, res, next) => {
         if (req.session && req.session.adminLoggedIn) {
@@ -25,23 +24,55 @@ function setupAdminRoutes(supabase, bot) {
         }
     };
 
+    // Middleware khusus untuk membatasi fitur Kepala Admin
+    const hanyaKepalaAdmin = (req, res, next) => {
+        if (req.session.adminRole === 'kepala admin') {
+            next();
+        } else {
+            res.status(403).send("Akses Ditolak: Hanya Akun Kepala Admin yang memiliki otoritas ini.");
+        }
+    };
+
     // ==========================================
     // LOGIN PAGE
     // ==========================================
     router.get('/login', (req, res) => {
-        const error = req.query.error ? 'Password salah!' : '';
+        const error = req.query.error ? 'Username atau Password salah!' : '';
         res.render('admin/login', { error });
     });
 
     // ==========================================
-    // DO LOGIN
+    // DO LOGIN (Menembak ke tabel 'admins' yang valid)
     // ==========================================
-    router.post('/do-login', (req, res) => {
-        const { password } = req.body;
-        if (password === process.env.ADMIN_PASSWORD) {
-            req.session.adminLoggedIn = true;
-            res.redirect('/admin');
-        } else {
+    router.post('/do-login', async (req, res) => {
+        const { username, password } = req.body;
+        
+        try {
+            // Memastikan pencarian mengarah ke tabel 'admins' sesuai data asli di Supabase
+            const { data: admin, error } = await supabase
+                .from('admins')
+                .select('*')
+                .eq('username', username)
+                .eq('password', password)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (admin) {
+                // Menyimpan informasi akun admin ke dalam session data
+                req.session.adminLoggedIn = true;
+                req.session.adminUser = admin.username;
+                req.session.adminRole = admin.role; // 'kepala admin' atau 'admin'
+
+                // 📜 CATAT LOG: Merekam riwayat login sukses operator ke database
+                await catatLog(admin.username, admin.role, 'Melakukan Login Ke Panel Admin');
+
+                res.redirect('/admin');
+            } else {
+                res.redirect('/admin/login?error=1');
+            }
+        } catch (err) {
+            console.error("Login Error:", err.message);
             res.redirect('/admin/login?error=1');
         }
     });
@@ -56,7 +87,13 @@ function setupAdminRoutes(supabase, bot) {
                 .select('*');
 
             if (error) throw error;
-            res.render('admin/dashboard', { users });
+            
+            // Melemparkan data user session agar tampilan menu di dashboard.ejs bisa dinamis
+            res.render('admin/dashboard', { 
+                users, 
+                adminUser: req.session.adminUser, 
+                adminRole: req.session.adminRole 
+            });
         } catch (err) {
             console.log(err);
             res.send("Gagal mengambil data user: " + err.message);
@@ -64,7 +101,7 @@ function setupAdminRoutes(supabase, bot) {
     });
 
     // ==========================================
-    // BROADCAST (Sudah di-patch untuk Serverless Environment)
+    // BROADCAST (Sudah Ditambahkan Log Audit)
     // ==========================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
@@ -83,29 +120,32 @@ function setupAdminRoutes(supabase, bot) {
 
             for (const user of users) {
                 try {
-                    // 1. Kirim Pesan Teks Broadcast
                     await bot.telegram.sendMessage(
                         user.chat_id,
                         `📢 *INFO TERBARU*\n\n${pesan}`,
                         { parse_mode: 'Markdown' }
                     );
 
-                    // 2. Kirim File/Dokumen jika ada (Membaca Buffer RAM, bukan File Lokal)
                     if (req.file) {
                         await bot.telegram.sendDocument(user.chat_id, {
-                            source: req.file.buffer, // Membaca file dari memori RAM
+                            source: req.file.buffer,
                             filename: req.file.originalname
                         });
                     }
                     success++;
-                    await new Promise(r => setTimeout(r, 1500)); // Anti-spam 1.5 detik
+                    await new Promise(r => setTimeout(r, 1500));
                 } catch (err) {
                     failed++;
                     console.log("Gagal kirim ke:", user.chat_id, err.message);
                 }
             }
 
-            // Catatan: fs.unlinkSync dihapus karena tidak ada file fisik yang dibuat di harddisk
+            // 📜 CATAT LOG: Merekam log audit pengiriman pesan massal oleh admin
+            await catatLog(
+                req.session.adminUser, 
+                req.session.adminRole, 
+                `Mengirim pesan Broadcast ke ${success} pengguna Telegram (Gagal: ${failed})`
+            );
 
             res.render('admin/broadcast-result', {
                 success,
@@ -120,14 +160,94 @@ function setupAdminRoutes(supabase, bot) {
     });
 
     // ==========================================
+    // ⚙️ VIEW EDIT KNOWLEDGE BASE AI (Mengambil aturan dari DB)
+    // ==========================================
+    router.get('/ai-config', checkLogin, async (req, res) => {
+        try {
+            const { data: config, error } = await supabase
+                .from('ai_config')
+                .select('*')
+                .eq('id', 1)
+                .single();
+
+            if (error) throw error;
+
+            res.render('admin/ai-config', { 
+                config, 
+                adminUser: req.session.adminUser, 
+                adminRole: req.session.adminRole 
+            });
+        } catch (err) {
+            res.status(500).send("Gagal memuat basis pengetahuan AI: " + err.message);
+        }
+    });
+
+    // ==========================================
+    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI (Dinamis & Tercatat Log)
+    // ==========================================
+    router.post('/ai-config/save', checkLogin, async (req, res) => {
+        const { system_instruction, knowledge_base } = req.body;
+        
+        try {
+            const { error } = await supabase
+                .from('ai_config')
+                .update({ 
+                    system_instruction, 
+                    knowledge_base,
+                    updated_at: new Date()
+                })
+                .eq('id', 1);
+
+            if (error) throw error;
+
+            // 📜 CATAT LOG: Merekam audit trail siapa yang memodifikasi sistem otak AI
+            await catatLog(
+                req.session.adminUser, 
+                req.session.adminRole, 
+                `Memperbarui System Instruction & Knowledge Base AI Gemini`
+            );
+
+            res.redirect('/admin/ai-config?success=1');
+        } catch (err) {
+            res.status(500).send("Gagal memperbarui konfigurasi AI: " + err.message);
+        }
+    });
+
+    // ==========================================
+    // 📋 VIEW TABEL LOG SISTEM (Proteksi Ketat: Hanya Kepala Admin)
+    // ==========================================
+    router.get('/logs', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+        try {
+            const { data: logs, error } = await supabase
+                .from('system_logs')
+                .select('*')
+                .order('waktu', { ascending: false });
+
+            if (error) throw error;
+
+            res.render('admin/logs', { 
+                logs, 
+                adminUser: req.session.adminUser, 
+                adminRole: req.session.adminRole 
+            });
+        } catch (err) {
+            res.status(500).send("Gagal mengambil data log sistem.");
+        }
+    });
+
+    // ==========================================
     // LOGOUT
     // ==========================================
-    router.get('/logout', (req, res) => {
+    router.get('/logout', checkLogin, async (req, res) => {
+        try {
+            await catatLog(req.session.adminUser, req.session.adminRole, 'Melakukan Logout dari Sistem');
+        } catch (err) {
+            console.error(err);
+        }
         req.session.destroy(() => res.redirect('/admin/login'));
     });
 
     return router;
 }
 
-// EKSPOR FUNGSI
 module.exports = setupAdminRoutes;

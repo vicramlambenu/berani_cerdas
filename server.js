@@ -5,9 +5,11 @@ const express = require('express');
 const session = require('express-session');
 const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
+// 🌟 IMPORT LIBRARY GOOGLE GEN AI TERBARU
+const { GoogleGenAI } = require('@google/generative-ai');
 
 // ==========================================
-// IMPORT ADMIN ROUTES
+// IMPORT ADMIN ROUTES (Dengan Melemparkan Fungsi Log)
 // ==========================================
 const setupAdminRoutes = require('./admin');
 
@@ -40,7 +42,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
-    console.error("⚠️ [WARNING] Variabel lingkungan (.env) belum terkonfigurasi dengan lengkap di Vercel!");
+    console.error("⚠️ [WARNING] Variabel lingkungan (.env) belum terkonfigurasi dengan lengkap!");
 }
 
 // ==========================================
@@ -64,17 +66,31 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 // ==========================================
-// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM
+// 📜 1. UTILITY: FUNGSI PENCATATAN LOG OTOMATIS (Catatan Hasil Pertemuan 31-05-2026.docx)
+// ==========================================
+async function catatLog(operator, role, aksi) {
+    if (!supabase) return;
+    try {
+        await supabase.from('system_logs').insert({
+            operator: operator,
+            role: role,
+            aksi: aksi
+        });
+    } catch (err) {
+        console.error("❌ Gagal menyimpan audit log ke database:", err.message);
+    }
+}
+
+// ==========================================
+// 🤖 LOGIKA TANGGAPAN BOT TELEGRAM (LANGSUNG DARI HP)
 // ==========================================
 if (TELEGRAM_TOKEN && bot && supabase) {
     
-    // Perintah /start
     bot.start(async (ctx) => {
         const chatId = ctx.chat.id;
         const firstName = ctx.from.first_name || 'Mahasiswa';
         
         try {
-            // Simpan otomatis ke subscribers untuk broadcast admin
             await supabase.from('subscribers').upsert({ chat_id: chatId.toString(), username: ctx.from.username || '' });
         } catch (err) {
             console.error("Gagal simpan subscriber:", err.message);
@@ -87,19 +103,18 @@ if (TELEGRAM_TOKEN && bot && supabase) {
         );
     });
 
-    // Perintah /help
     bot.help((ctx) => {
         ctx.replyWithMarkdown(`Kirimkan *NIM* kamu (contoh: \`F55122001\`) untuk mengecek status seleksi beasiswa secara real-time.`);
     });
 
-    // Proses membaca pesan teks mahasiswa (Fitur Cek NIM)
+    // Proses membaca pesan teks mahasiswa (Direct Telegram Handling)
     bot.on('text', async (ctx) => {
         const text = ctx.message.text.trim();
-        const nimRegex = /^[A-Z][0-9]+/i; // Pola awalan huruf disusul angka (NIM UNTAD)
+        const nimRegex = /^[A-Z][0-9]{3}[0-9]+/i; 
 
         if (nimRegex.test(text)) {
-            await ctx.reply('🔎 Sedang mengecek data kamu di database Supabase, mohon tunggu...');
-            
+            // 🚪 PINTU PERTAMA LANGSUNG: JIKA INPUT NIM
+            await ctx.reply('🔎 Sedang mengecek data Anda di database Supabase, mohon tunggu...');
             try {
                 const { data, error } = await supabase
                     .from('pendaftar')
@@ -108,9 +123,8 @@ if (TELEGRAM_TOKEN && bot && supabase) {
                     .maybeSingle();
 
                 if (error) throw error;
-
                 if (!data) {
-                    return ctx.replyWithMarkdown(`❌ NIM *${text.toUpperCase()}* tidak ditemukan dalam sistem pendaftaran Beasiswa Berani Cerdas.`);
+                    return ctx.replyWithMarkdown(`❌ NIM *${text.toUpperCase()}* tidak ditemukan dalam database.`);
                 }
 
                 return ctx.replyWithMarkdown(
@@ -120,22 +134,42 @@ if (TELEGRAM_TOKEN && bot && supabase) {
                     `📋 *Status Berkas:* _${data.status_berkas}_\n` +
                     `📝 *Keterangan:* ${data.keterangan || 'Tidak ada catatan tambahan.'}`
                 );
-
             } catch (err) {
-                console.error("Database error via Bot:", err.message);
                 return ctx.reply('⚠️ Terjadi kesalahan internal saat mengakses database.');
             }
         } else {
-            ctx.reply('❓ Format salah. Silakan kirimkan NIM kamu yang valid untuk memeriksa status beasiswa.');
+            // 🚪 PINTU KEDUA LANGSUNG: CHAT AI GEMINI MENGGUNAKAN KONFIGURASI SUPABASE
+            try {
+                if (!process.env.GEMINI_API_KEY) {
+                    return ctx.reply('Halo! Silakan masukkan NIM Anda untuk mengecek status beasiswa.');
+                }
+
+                // Ambil Knowledgebase terbaru yang disimpan admin dari DB
+                const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
+
+                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+                const model = ai.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+                const finalPrompt = 
+                    `${config?.system_instruction || 'Kamu adalah AI Admin resmi Beasiswa Berani Cerdas.'}\n\n` +
+                    `[KNOWLEDGE BASE ATURAN]:\n${config?.knowledge_base || ''}\n\n` +
+                    `Pertanyaan mahasiswa: "${text}"`;
+
+                const result = await model.generateContent(finalPrompt);
+                return ctx.replyWithMarkdown(result.response.text());
+            } catch (aiErr) {
+                return ctx.reply('Halo! Silakan kirimkan NIM Anda untuk memeriksa status berkas.');
+            }
         }
     });
 }
 
 // ==========================================
-// ADMIN ROUTES (Panel Web Admin & Broadcast)
+// ADMIN ROUTES (Mendukung Login Username, Multi-role, dan Log)
 // ==========================================
 if (supabase) {
-    const adminRouter = setupAdminRoutes(supabase, bot);
+    // Memasukkan fungsi catatLog agar rute web admin bisa mencatat log sistem
+    const adminRouter = setupAdminRoutes(supabase, bot, catatLog);
     app.use('/admin', adminRouter);
 } else {
     app.use('/admin', (req, res) => {
@@ -144,7 +178,7 @@ if (supabase) {
 }
 
 // ==========================================
-// TELEGRAM WEBHOOK ENDPOINT (Jalur Masuk Chat Vercel)
+// TELEGRAM WEBHOOK ENDPOINT
 // ==========================================
 app.post('/api/telegram-webhook', async (req, res) => {
     try {
@@ -153,13 +187,12 @@ app.post('/api/telegram-webhook', async (req, res) => {
         }
         res.status(200).send('OK');
     } catch (err) {
-        console.error("Webhook Error:", err);
         res.status(200).send('OK');
     }
 });
 
 // ==========================================
-// OPENCLAW API GATEWAY ENDPOINT
+// 🚪 PINTU PERTAMA: OPENCLAW API GATEWAY ENDPOINT (AMBIL NIM)
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
@@ -173,10 +206,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
             .eq('nim', nim.toUpperCase())
             .maybeSingle(); 
 
-        if (error) {
-            console.error('Supabase Error:', error);
-            return res.status(500).json({ success: false, message: 'Gagal mengambil data database.' });
-        }
+        if (error) throw error;
         if (!data) {
             return res.status(404).json({ success: false, message: 'NIM tidak ditemukan.' });
         }
@@ -188,8 +218,54 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
             keterangan: data.keterangan || 'Tidak ada catatan tambahan.'
         });
     } catch (err) {
-        console.error('Server Internal Error:', err);
         return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+    }
+});
+
+// ==========================================
+// 🚪 PINTU KEDUA: JALUR API OPENCLAW DENGAN KNOWLEDGE BASE DINAMIS (Catatan 3)
+// ==========================================
+app.post('/api/ai-chat', async (req, res) => {
+    const { pesan } = req.body; 
+
+    if (!pesan) {
+        return res.status(400).json({ success: false, message: 'Pesan tidak boleh kosong.' });
+    }
+
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            return res.json({ success: true, balasan: 'Halo! Silakan masukkan NIM Anda untuk mengecek status berkas.' });
+        }
+
+        // 🌟 AMBIL KNOWLEDGE BASE & INSTRUKSI YANG DIEDIT ADMIN SECARA REAL-TIME (Catatan 3)
+        const { data: config, error: configError } = await supabase
+            .from('ai_config')
+            .select('system_instruction, knowledge_base')
+            .eq('id', 1)
+            .single();
+
+        if (configError) throw configError;
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const model = ai.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+
+        // Gabungkan Instruksi + Basis Pengetahuan Dinamis dari Database hasil inputan Admin
+        const finalPrompt = 
+            `${config.system_instruction}\n\n` +
+            `[KNOWLEDGE BASE DATA REFERENSI]:\n${config.knowledge_base}\n\n` +
+            `Pesan mahasiswa yang masuk lewat OpenClaw Gateway: "${pesan}"`;
+
+        const result = await model.generateContent(finalPrompt);
+        const responseText = result.response.text();
+
+        return res.json({
+            success: true,
+            balasan: responseText
+        });
+
+    } catch (err) {
+        console.error('Gagal memanggil Gemini via OpenClaw:', err.message);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada modul Inteligensia AI.' });
     }
 });
 
@@ -211,19 +287,13 @@ app.get('/', (req, res) => {
 <header class="text-center mb-8">
 <p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Kelompok 7</p>
 <h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
-<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD. Sistem bot berjalan terintegrasi 24 jam penuh di awan.</p>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD. Sistem bot berjalan terintegrasi dengan OpenClaw Gateway.</p>
 </header>
-<section class="grid gap-4 md:grid-cols-2 mb-8">
-<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
-<h2 class="text-xl font-bold text-cyan-300 mb-3">Status Sistem</h2>
-<p class="text-slate-200">Bot Telegram & API Web Server terintegrasi aktif di Vercel.</p>
+<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6 text-center">
+<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel (Multi-Role Login)</h2>
+<p class="text-slate-200 text-sm mb-4">Kepala Admin & Admin dapat mengelola pendaftar, melihat log audit, dan memodifikasi instruksi Knowledge Base AI.</p>
+<a href="/admin" class="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Dashboard</a>
 </div>
-<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
-<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel</h2>
-<p class="text-slate-200">Akses panel admin manajemen beasiswa.</p>
-<a href="/admin" class="inline-flex mt-4 items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Admin</a>
-</div>
-</section>
 </div>
 </body>
 </html>
