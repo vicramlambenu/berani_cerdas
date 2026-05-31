@@ -1,13 +1,2 @@
-# Mengabaikan file konfigurasi rahasia agar tidak bocor ke GitHub
 .env
-
-# Mengabaikan folder library node (Vercel akan mengunduh sendiri secara otomatis)
 node_modules/
-
-# Mengabaikan file log eror jika ada
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Mengabaikan folder log lokal Vercel
-.vercel/
