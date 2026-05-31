@@ -197,8 +197,35 @@ app.post('/api/ai-chat', async (req, res) => {
 });
 
 // HOME PAGE
+// ==========================================
+// HOME PAGE (KEMBALI KE DESAIN KEREN KELOMPOK 7)
+// ==========================================
 app.get('/', (req, res) => {
-    res.send(`<h1 style="text-align:center; margin-top:20%;">🎓 Beasiswa Berani Cerdas - Kelompok 7 Aktif di Cloud!</h1>`);
+    res.send(`
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beasiswa Berani Cerdas - Kelompok 7</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+<div class="max-w-3xl w-full bg-slate-900/95 border border-slate-800 rounded-3xl shadow-2xl p-8">
+<header class="text-center mb-8">
+<p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Kelompok 7</p>
+<h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD. Sistem bot berjalan terintegrasi dengan OpenClaw Gateway secara otomatis di Cloud.</p>
+</header>
+<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6 text-center">
+<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel (Multi-Role Login)</h2>
+<p class="text-slate-200 text-sm mb-4">Kepala Admin & Admin dapat mengelola pendaftar, melihat log audit, dan memodifikasi instruksi Knowledge Base AI.</p>
+<a href="/admin" class="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Dashboard</a>
+</div>
+</div>
+</body>
+</html>
+    `);
 });
 
 if (process.env.NODE_ENV !== 'production') {
