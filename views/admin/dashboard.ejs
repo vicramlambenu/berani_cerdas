@@ -13,16 +13,28 @@
 </head>
 <body class="min-h-screen p-4 md:p-8 text-slate-900">
   <div class="mx-auto max-w-6xl">
+    
     <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">🎓 Berani Cerdas Admin</h1>
-        <p class="mt-2 text-blue-100">Dashboard Administrator</p>
+        <p class="mt-2 text-blue-100">Dashboard Administrator (<%= adminUser %> - <span class="capitalize"><%= adminRole %></span>)</p>
       </div>
-      <a href="/admin/logout" class="inline-flex items-center justify-center rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600">
+      <a href="/admin/logout" class="inline-flex items-center justify-center rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 shadow-lg">
         🚪 Logout
       </a>
     </div>
 
+    <div class="mb-8 flex flex-wrap gap-4">
+      <a href="/admin/ai-config" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-cyan-600 hover:to-blue-700 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
+        ⚙️ Pengaturan AI & Knowledge Base
+      </a>
+
+      <% if (adminRole === 'kepala admin') { %>
+        <a href="/admin/logs" class="inline-flex items-center gap-2 rounded-2xl bg-slate-800 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-slate-900 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
+          📋 Lihat Log Audit Sistem
+        </a>
+      <% } %>
+    </div>
     <div class="grid gap-6 md:grid-cols-3 mb-8">
       <div class="rounded-3xl bg-white p-6 card-shadow">
         <p class="text-sm font-semibold text-slate-500">Total Users</p>

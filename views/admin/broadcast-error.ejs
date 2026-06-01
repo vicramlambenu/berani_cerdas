@@ -5,12 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Error Broadcast - Berani Cerdas</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }</style>
 </head>
-<body class="bg-gradient-to-br from-red-600 to-red-800 min-h-screen flex items-center justify-center p-4">
-  <div class="max-w-md rounded-3xl bg-white p-10 shadow-2xl text-center">
-    <h1 class="mb-3 text-3xl font-black text-red-600">⚠️ Error</h1>
-    <p class="mb-6 text-slate-700">Terjadi kesalahan saat mengirim broadcast.</p>
-    <a href="/admin" class="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-700">Kembali</a>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <div class="rounded-3xl bg-white p-8 shadow-2xl text-center border border-red-100">
+      
+      <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 animate-pulse">
+        <span class="text-4xl">⚠️</span>
+      </div>
+
+      <h1 class="mb-3 text-3xl font-black text-slate-900">Terjadi Kesalahan</h1>
+      <p class="mb-6 text-sm text-slate-600 leading-relaxed">
+        Sistem gagal memproses pengiriman pesan broadcast. Pastikan koneksi database Supabase Anda aktif dan token bot Telegram dikonfigurasi dengan benar di file <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-xs text-red-600">.env</code>.
+      </p>
+
+      <div class="border-t border-slate-100 pt-6">
+        <a href="/admin" class="w-full inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-blue-700 hover:to-purple-700 shadow-md hover:scale-[1.02] active:scale-[0.98]">
+          🏠 Kembali ke Dashboard
+        </a>
+      </div>
+
+    </div>
   </div>
 </body>
 </html>

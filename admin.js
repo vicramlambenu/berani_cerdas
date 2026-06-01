@@ -92,18 +92,22 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             
             // Melemparkan data user session agar tampilan menu di dashboard.ejs bisa dinamis
             res.render('admin/dashboard', { 
-                users, 
+                users: users || [], 
                 adminUser: req.session.adminUser, 
                 adminRole: req.session.adminRole 
             });
         } catch (err) {
-            console.log(err);
-            res.send("Gagal mengambil data user: " + err.message);
+            console.error(err);
+            res.render('admin/dashboard', { 
+                users: [], 
+                adminUser: req.session.adminUser, 
+                adminRole: req.session.adminRole 
+            });
         }
     });
 
     // ==========================================
-    // BROADCAST TELEGRAM
+    // BROADCAST TELEGRAM (Sinkron dengan tabel broadcast_logs & system_logs)
     // ==========================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
@@ -144,7 +148,20 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 }
             }
 
-            // 📜 CATAT LOG AUDIT BROADCAST
+            // 📜 1. CATAT KE TABEL broadcast_logs (Sesuai skema tabel baru di database kamu)
+            try {
+                await supabase.from('broadcast_logs').insert({
+                    operator: req.session.adminUser,
+                    pesan: pesan,
+                    target: target_chat_id || 'Semua Subscriber',
+                    status: `Sukses: ${success}, Gagal: ${failed}`,
+                    waktu: new Date()
+                });
+            } catch (logErr) {
+                console.error("Gagal mencatat ke tabel broadcast_logs:", logErr.message);
+            }
+
+            // 📜 2. CATAT KE TABEL AUDIT UTAMA system_logs
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser, 
@@ -189,7 +206,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI
+    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI (Dinamis ke id: 1)
     // ==========================================
     router.post('/ai-config/save', checkLogin, async (req, res) => {
         const { system_instruction, knowledge_base } = req.body;
