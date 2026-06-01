@@ -65,7 +65,9 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 req.session.adminRole = admin.role; // 'kepala admin' atau 'admin'
 
                 // 📜 CATAT LOG: Merekam riwayat login sukses operator ke database
-                await catatLog(admin.username, admin.role, 'Melakukan Login Ke Panel Admin');
+                if (catatLog) {
+                    await catatLog(admin.username, admin.role, 'Melakukan Login Ke Panel Admin');
+                }
 
                 res.redirect('/admin');
             } else {
@@ -78,7 +80,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // DASHBOARD
+    // DASHBOARD MAIN VIEW
     // ==========================================
     router.get('/', checkLogin, async (req, res) => {
         try {
@@ -101,7 +103,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // BROADCAST (Sudah Ditambahkan Log Audit)
+    // BROADCAST TELEGRAM
     // ==========================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
@@ -120,19 +122,21 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             for (const user of users) {
                 try {
-                    await bot.telegram.sendMessage(
-                        user.chat_id,
-                        `📢 *INFO TERBARU*\n\n${pesan}`,
-                        { parse_mode: 'Markdown' }
-                    );
+                    if (bot && bot.telegram) {
+                        await bot.telegram.sendMessage(
+                            user.chat_id,
+                            `📢 *INFO TERBARU*\n\n${pesan}`,
+                            { parse_mode: 'Markdown' }
+                        );
 
-                    if (req.file) {
-                        await bot.telegram.sendDocument(user.chat_id, {
-                            source: req.file.buffer,
-                            filename: req.file.originalname
-                        });
+                        if (req.file) {
+                            await bot.telegram.sendDocument(user.chat_id, {
+                                source: req.file.buffer,
+                                filename: req.file.originalname
+                            });
+                        }
+                        success++;
                     }
-                    success++;
                     await new Promise(r => setTimeout(r, 1500));
                 } catch (err) {
                     failed++;
@@ -140,12 +144,14 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 }
             }
 
-            // 📜 CATAT LOG: Merekam log audit pengiriman pesan massal oleh admin
-            await catatLog(
-                req.session.adminUser, 
-                req.session.adminRole, 
-                `Mengirim pesan Broadcast ke ${success} pengguna Telegram (Gagal: ${failed})`
-            );
+            // 📜 CATAT LOG AUDIT BROADCAST
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser, 
+                    req.session.adminRole, 
+                    `Mengirim pesan Broadcast ke ${success} pengguna Telegram (Gagal: ${failed})`
+                );
+            }
 
             res.render('admin/broadcast-result', {
                 success,
@@ -160,7 +166,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // ⚙️ VIEW EDIT KNOWLEDGE BASE AI (Mengambil aturan dari DB)
+    // ⚙️ VIEW EDIT KNOWLEDGE BASE AI
     // ==========================================
     router.get('/ai-config', checkLogin, async (req, res) => {
         try {
@@ -183,7 +189,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI (Dinamis & Tercatat Log)
+    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI
     // ==========================================
     router.post('/ai-config/save', checkLogin, async (req, res) => {
         const { system_instruction, knowledge_base } = req.body;
@@ -200,12 +206,14 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // 📜 CATAT LOG: Merekam audit trail siapa yang memodifikasi sistem otak AI
-            await catatLog(
-                req.session.adminUser, 
-                req.session.adminRole, 
-                `Memperbarui System Instruction & Knowledge Base AI Gemini`
-            );
+            // 📜 CATAT LOG MODIFIKASI AI
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser, 
+                    req.session.adminRole, 
+                    `Memperbarui System Instruction & Knowledge Base AI Gemini`
+                );
+            }
 
             res.redirect('/admin/ai-config?success=1');
         } catch (err) {
@@ -214,7 +222,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ==========================================
-    // 📋 VIEW TABEL LOG SISTEM (Proteksi Ketat: Hanya Kepala Admin)
+    // 📋 VIEW TABEL LOG SISTEM (Hanya Kepala Admin)
     // ==========================================
     router.get('/logs', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         try {
@@ -240,7 +248,9 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     // ==========================================
     router.get('/logout', checkLogin, async (req, res) => {
         try {
-            await catatLog(req.session.adminUser, req.session.adminRole, 'Melakukan Logout dari Sistem');
+            if (catatLog) {
+                await catatLog(req.session.adminUser, req.session.adminRole, 'Melakukan Logout dari Sistem');
+            }
         } catch (err) {
             console.error(err);
         }

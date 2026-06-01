@@ -3,10 +3,11 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
+const { Telegraf } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
 
 // ==========================================
-// IMPORT ADMIN ROUTES
+// IMPORT ADMIN ROUTES (Dengan Melemparkan Fungsi Log)
 // ==========================================
 const setupAdminRoutes = require('./admin');
 
@@ -32,13 +33,24 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // ==========================================
-// ENV & SAFETY CHECK
+// ENV & SAFETY CHECK (Graceful Handling)
 // ==========================================
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || process.env.TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error("⚠️ [WARNING] Variabel lingkungan Supabase belum terkonfigurasi di Vercel!");
+if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("⚠️ [WARNING] Variabel lingkungan (.env) belum terkonfigurasi dengan lengkap!");
+}
+
+// ==========================================
+// TELEGRAM BOT (Hanya Untuk Start & Help Sederhana)
+// ==========================================
+let bot;
+if (TELEGRAM_TOKEN) {
+    bot = new Telegraf(TELEGRAM_TOKEN);
+} else {
+    bot = new Telegraf('123456789:PlaceholderTokenUntukMencegahErorCrash');
 }
 
 // ==========================================
@@ -52,11 +64,54 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 }
 
 // ==========================================
-// ADMIN ROUTES (Panel Web Admin & Broadcast)
+// 📜 1. UTILITY: FUNGSI PENCATATAN LOG OTOMATIS
+// ==========================================
+async function catatLog(operator, role, aksi) {
+    if (!supabase) return;
+    try {
+        await supabase.from('system_logs').insert({
+            operator: operator,
+            role: role,
+            aksi: aksi
+        });
+    } catch (err) {
+        console.error("❌ Gagal menyimpan audit log ke database:", err.message);
+    }
+}
+
+// ==========================================
+// 🤖 BOT COMMANDS (SABUTAN AWAL SAJA)
+// ==========================================
+if (TELEGRAM_TOKEN && bot && supabase) {
+    bot.start(async (ctx) => {
+        const chatId = ctx.chat.id;
+        const firstName = ctx.from.first_name || 'Mahasiswa';
+        
+        try {
+            await supabase.from('subscribers').upsert({ chat_id: chatId.toString(), username: ctx.from.username || '' });
+        } catch (err) {
+            console.error("Gagal simpan subscriber:", err.message);
+        }
+
+        ctx.replyWithMarkdown(
+            `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas JTI UNTAD! 🎓\n\n` +
+            `Silakan ketik NIM Anda untuk cek status berkas, atau tanyakan apa saja. AI OpenClaw akan langsung merespons secara otomatis!`
+        );
+    });
+
+    bot.help((ctx) => {
+        ctx.replyWithMarkdown(`Ketik NIM Anda atau kirim pertanyaan seputar beasiswa secara langsung.`);
+    });
+
+    // 🛑 KODE BOT.ON('TEXT') YANG MANUAL DAN BENTROK SUDAH DIHAPUS TOTAL DI SINI!
+    // Karena penanganan teks chat sepenuhnya diambil alih oleh engine otomatis OpenClaw Gateway.
+}
+
+// ==========================================
+// ADMIN ROUTES (Mendukung Login Username, Multi-role, dan Log)
 // ==========================================
 if (supabase) {
-    // Telegraf dihapus, kirim parameter bot sebagai null agar panel admin tetap jalan aman
-    const adminRouter = setupAdminRoutes(supabase, null);
+    const adminRouter = setupAdminRoutes(supabase, bot, catatLog);
     app.use('/admin', adminRouter);
 } else {
     app.use('/admin', (req, res) => {
@@ -65,7 +120,21 @@ if (supabase) {
 }
 
 // ==========================================
-// 🚪 OPENCLAW API GATEWAY ENDPOINT (PINTU DIALIRKAN KE OPENCLAW)
+// TELEGRAM WEBHOOK ENDPOINT
+// ==========================================
+app.post('/api/telegram-webhook', async (req, res) => {
+    try {
+        if (TELEGRAM_TOKEN && bot) {
+            await bot.handleUpdate(req.body);
+        }
+        res.status(200).send('OK');
+    } catch (err) {
+        res.status(200).send('OK');
+    }
+});
+
+// ==========================================
+// 🚪 PINTU GATEWAY OPENCLAW 1: AMBIL DATA JALUR NIM
 // ==========================================
 app.get('/api/pendaftar/:nim', async (req, res) => {
     const { nim } = req.params;
@@ -79,10 +148,7 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
             .eq('nim', nim.toUpperCase())
             .maybeSingle(); 
 
-        if (error) {
-            console.error('Supabase Error:', error);
-            return res.status(500).json({ success: false, message: 'Gagal mengambil data database.' });
-        }
+        if (error) throw error;
         if (!data) {
             return res.status(404).json({ success: false, message: 'NIM tidak ditemukan.' });
         }
@@ -94,13 +160,34 @@ app.get('/api/pendaftar/:nim', async (req, res) => {
             keterangan: data.keterangan || 'Tidak ada catatan tambahan.'
         });
     } catch (err) {
-        console.error('Server Internal Error:', err);
         return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
     }
 });
 
 // ==========================================
-// HOME PAGE (TAMPILAN DASHBOARD)
+// 🚪 PINTU GATEWAY OPENCLAW 2: CHAT AI UTAMA VIA OPENCLAW ENGINE
+// ==========================================
+app.post('/api/ai-chat', async (req, res) => {
+    const { pesan } = req.body; 
+    if (!pesan) return res.status(400).json({ success: false, message: 'Pesan kosong.' });
+
+    try {
+        const { data: config } = await supabase.from('ai_config').select('*').eq('id', 1).single();
+
+        // Pintu ini otomatis mendengarkan kiriman dari ekosistem OpenClaw kamu
+        return res.json({
+            success: true,
+            system_instruction: config?.system_instruction,
+            knowledge_base: config?.knowledge_base,
+            model_target: "gemini-2.0-flash-lite"
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'OpenClaw API Error.' });
+    }
+});
+
+// ==========================================
+// HOME PAGE
 // ==========================================
 app.get('/', (req, res) => {
     res.send(`
@@ -117,33 +204,23 @@ app.get('/', (req, res) => {
 <header class="text-center mb-8">
 <p class="text-sm uppercase tracking-[0.4em] text-cyan-300">Beasiswa Kelompok 7</p>
 <h1 class="mt-3 text-4xl md:text-5xl font-extrabold text-white">🎓 Beasiswa Berani Cerdas</h1>
-<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD. Berjalan otomatis menggunakan OpenClaw Gateway.</p>
+<p class="mt-4 text-slate-400 max-w-xl mx-auto">Program beasiswa mahasiswa aktif JTI UNTAD terintegrasi OpenClaw Gateway.</p>
 </header>
-<section class="grid gap-4 md:grid-cols-2 mb-8">
-<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
-<h2 class="text-xl font-bold text-cyan-300 mb-3">Status Sistem</h2>
-<p class="text-slate-200">Murni menggunakan OpenClaw Engine untuk menjawab otomatis via AI Gemini.</p>
+<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6 text-center">
+<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel (Multi-Role Login)</h2>
+<p class="text-slate-200 text-sm mb-4">Kelola pendaftar, lihat log audit, dan modifikasi instruksi Knowledge Base AI.</p>
+<a href="/admin" class="inline-flex items-center justify-center rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Dashboard</a>
 </div>
-<div class="rounded-3xl bg-slate-800/70 border border-slate-700 p-6">
-<h2 class="text-xl font-bold text-emerald-300 mb-3">Admin Panel</h2>
-<p class="text-slate-200">Akses panel admin manajemen beasiswa.</p>
-<a href="/admin" class="inline-flex mt-4 items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">Masuk Admin</a>
-</div>
-</section>
 </div>
 </body>
 </html>
     `);
 });
 
-// ==========================================
-// RUN EXPRESS SERVER ONLY
-// ==========================================
+// RUN SERVER
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 7860;
-    app.listen(PORT, () => {
-        console.log(`SERVER AKTIF DI PORT ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`SERVER AKTIF DI PORT ${PORT}`));
 }
 
 module.exports = app;
