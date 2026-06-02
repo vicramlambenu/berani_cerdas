@@ -347,6 +347,60 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
+    // ===================================================================
+    // 📊 🛠️ FITUR GENERATOR EKSPOR SPREADSHEET CSV (Dinamis dari Supabase)
+    // ===================================================================
+    router.get('/download-csv', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+        try {
+            // 1. Tarik data log audit trail terbaru dari Supabase
+            const { data: logs, error } = await supabase
+                .from('system_logs')
+                .select('*')
+                .order('waktu', { ascending: false });
+
+            if (error) throw error;
+
+            // 2. Konfigurasi headers respons transmisi berkas CSV Excel
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Audit_Log_Berani_Cerdas.csv');
+
+            // 3. Tambahkan BOM UTF-8 (\uFEFF) agar karakter lokal dan simbol terbaca rapi saat di-double click di MS Excel
+            let csvContent = '\uFEFF';
+            csvContent += 'Waktu (WITA),Operator,Role,Deskripsi Tindakan Sistem\n';
+
+            // 4. Transformasikan data array dari database menjadi baris-baris string CSV
+            if (logs && logs.length > 0) {
+                logs.forEach(log => {
+                    const waktu = new Date(log.waktu).toLocaleString('id-ID').replace(/,/g, ''); // Amankan koma penanggalan
+                    const operator = log.operator || '-';
+                    const role = (log.role || '-').toUpperCase();
+                    // Bungkus kolom tindakan dengan kutip ganda dan bersihkan tanda petik internal agar format CSV valid
+                    const aksi = `"${(log.aksi || '-').replace(/"/g, '""')}"`; 
+
+                    csvContent += `${waktu},${operator},${role},${aksi}\n`;
+                });
+            }
+
+            // 5. Lempar string ke browser
+            res.status(200).send(csvContent);
+
+            // 📜 Catat aktivitas ekspor spreadsheet ini ke database
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser, 
+                    req.session.adminRole, 
+                    'Mengeksport Berkas Dokumen Audit Log Format Spreadsheet (.csv)'
+                );
+            }
+
+        } catch (err) {
+            console.error("Gagal memproses ekspor CSV log:", err.message);
+            if (!res.headersSent) {
+                res.status(500).send("Terjadi kesalahan internal saat menyusun berkas dokumen CSV.");
+            }
+        }
+    });
+
     // ==========================================
     // LOGOUT
     // ==========================================
