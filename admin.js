@@ -148,7 +148,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 }
             }
 
-            // 📜 1. CATAT KE TABEL broadcast_logs (Sesuai skema tabel baru di database kamu)
+            // 📜 1. CATAT KE TABEL broadcast_logs
             try {
                 await supabase.from('broadcast_logs').insert({
                     operator: req.session.adminUser,
@@ -257,6 +257,93 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             });
         } catch (err) {
             res.status(500).send("Gagal mengambil data log sistem.");
+        }
+    });
+
+    // ===================================================================
+    // 💾 🛠️ FITUR GENERATOR EKSPOR PDF RESMI (Dinamis dari Supabase)
+    // ===================================================================
+    router.get('/download-log', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+        const PDFDocument = require('pdfkit-table');
+
+        try {
+            // 1. Ambil riwayat log audit aktual langsung dari database Supabase
+            const { data: logs, error } = await supabase
+                .from('system_logs')
+                .select('*')
+                .order('waktu', { ascending: false });
+
+            if (error) throw error;
+
+            // 2. Inisialisasi dokumen kertas A4
+            const doc = new PDFDocument({ margin: 30, size: 'A4' });
+
+            // Pengaturan Headers respons transmisi berkas biner PDF
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Audit_Log_Berani_Cerdas.pdf');
+            
+            doc.pipe(res);
+
+            // 3. DESAIN DOKUMEN (Kop Surat Formal Kepresidenan / Organisasi)
+            doc.fontSize(18).font('Helvetica-Bold').text('PROGRAM BEASISWA BERANI CERDAS', { align: 'center' });
+            doc.fontSize(10).font('Helvetica').text('Sekretariat Jenderal Admin Utama - Provinsi Sulawesi Tengah', { align: 'center' });
+            doc.moveDown(0.5);
+            doc.moveTo(30, doc.y).lineTo(565, doc.y).stroke('#4f46e5'); // Garis pembatas warna indigo
+            doc.moveDown(1.5);
+
+            doc.fontSize(13).font('Helvetica-Bold').text('LAPORAN AUDIT TRAIL AKTIVITAS SISTEM', { align: 'left' });
+            doc.fontSize(9).font('Helvetica-Oblique').text(`Dieksport Oleh: ${req.session.adminUser} (${req.session.adminRole}) | Tanggal Cetak: ${new Date().toLocaleString('id-ID')}`, { align: 'left' });
+            doc.moveDown(1.5);
+
+            // 4. STRUKTUR FORMAT TABEL PDF
+            const table = {
+                title: "Daftar Aktivitas Log yang Terekam di Database:",
+                headers: [
+                    { label: "Waktu (WITA)", property: "waktu", width: 110 },
+                    { label: "Operator", property: "operator", width: 90 },
+                    { label: "Role", property: "role", width: 90 },
+                    { label: "Deskripsi Tindakan Sistem", property: "aksi", width: 220 }
+                ],
+                datas: (logs || []).map(log => ({
+                    waktu: new Date(log.waktu).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }),
+                    operator: log.operator || '-',
+                    role: (log.role || '-').toUpperCase(),
+                    aksi: log.aksi || '-'
+                }))
+            };
+
+            // Gambar tabel ke kanvas PDF
+            await doc.table(table, {
+                prepareHeader: () => doc.font("Helvetica-Bold").fontSize(10).fillColor("#1e293b"),
+                prepareRow: (row, index, column, rowNumber, rectRow) => doc.font("Helvetica").fontSize(9).fillColor("#334155")
+            });
+
+            // 5. KOLOM VALIDASI TANDA TANGAN KEPALA ADMINISTRATOR
+            doc.moveDown(3);
+            if (doc.y > 700) doc.addPage(); // Buka halaman baru jika area bawah kertas sisa sedikit
+            
+            doc.fontSize(10).font('Helvetica').text('Mengetahui,', 400);
+            doc.moveDown(2.5);
+            doc.font('Helvetica-Bold').text(`${req.session.adminUser.toUpperCase()}`, 400);
+            doc.font('Helvetica').text(`Kepala Administrator`, 400);
+
+            // Tutup dan kirim aliran PDF ke browser
+            doc.end();
+
+            // 📜 Catat log aksi konversi & ekspor PDF ini ke sistem
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser, 
+                    req.session.adminRole, 
+                    'Mengeksport Berkas Dokumen Audit Log Resmi (.pdf)'
+                );
+            }
+
+        } catch (err) {
+            console.error("Gagal memproses ekspor PDF log:", err.message);
+            if (!res.headersSent) {
+                res.status(500).send("Terjadi kesalahan internal saat menyusun berkas dokumen PDF.");
+            }
         }
     });
 
