@@ -20,9 +20,15 @@
       </a>
     </div>
 
-    <% if (typeof query !== 'undefined' && query.success) { %>
+    <% if (typeof req !== 'undefined' && req.query.success) { %>
       <div class="mb-6 rounded-2xl bg-emerald-500 p-4 font-semibold text-white shadow-lg flex items-center gap-3">
         <span>✅</span> Data Knowledge Base AI Berhasil Diperbarui di Supabase! OpenClaw otomatis tersinkronisasi.
+      </div>
+    <% } %>
+
+    <% if (typeof req !== 'undefined' && req.query.user_added) { %>
+      <div class="mb-6 rounded-2xl bg-emerald-500 p-4 font-semibold text-white shadow-lg flex items-center gap-3 animate-fade-in">
+        <span>👤 ✅</span> Akun administrator baru berhasil didaftarkan ke database dan bisa langsung digunakan!
       </div>
     <% } %>
 
@@ -53,13 +59,70 @@
       </form>
     </div>
 
+    <div class="mt-8 rounded-3xl bg-white p-8 shadow-2xl">
+      <div class="mb-6 flex items-center gap-3 text-gray-800">
+        <span class="text-3xl">👥</span>
+        <h2 class="text-2xl font-bold">Manajemen Tim: Tambah Akun Admin</h2>
+      </div>
+
+      <form action="/admin/ai-config/add-admin" method="POST" class="space-y-5">
+        <div class="grid gap-6 md:grid-cols-3">
+          
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Username Baru</label>
+            <input 
+              type="text" 
+              name="new_username" 
+              placeholder="Contoh: staff_admin_kel7" 
+              required 
+              class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Password Baru</label>
+            <input 
+              type="password" 
+              name="new_password" 
+              placeholder="Masukkan password akun..." 
+              required 
+              class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Otoritas Hak Akses (Role)</label>
+            <select name="new_role" required class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white">
+              <option value="admin">admin (Hanya Kirim Broadcast)</option>
+              <option value="kepala admin">kepala admin (Akses Otoritas Penuh)</option>
+            </select>
+          </div>
+
+        </div>
+
+        <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-sm font-bold text-white transition hover:from-emerald-700 hover:to-teal-700 shadow-lg hover:scale-[1.01] active:scale-[0.99]">
+          🚀 Daftarkan Akun Staff Sekarang
+        </button>
+      </form>
+    </div>
+
   </div>
 
   <script>
+    // Notifikasi melayang jika sukses update memory AI
     if (window.location.search.includes('success=1')) {
       const msg = document.createElement('div');
-      msg.className = "fixed bottom-5 right-5 rounded-2xl bg-emerald-600 text-white font-bold py-3 px-6 shadow-2xl transition duration-500";
+      msg.className = "fixed bottom-5 right-5 rounded-2xl bg-emerald-600 text-white font-bold py-3 px-6 shadow-2xl transition duration-500 z-50";
       msg.innerText = "🎉 Sukses memperbarui memori AI!";
+      document.body.appendChild(msg);
+      setTimeout(() => msg.remove(), 4000);
+    }
+
+    // Notifikasi melayang jika sukses menambahkan akun staff baru
+    if (window.location.search.includes('user_added=1')) {
+      const msg = document.createElement('div');
+      msg.className = "fixed bottom-5 right-5 rounded-2xl bg-blue-600 text-white font-bold py-3 px-6 shadow-2xl transition duration-500 z-50";
+      msg.innerText = "👤 Sukses menambahkan akun staff baru!";
       document.body.appendChild(msg);
       setTimeout(() => msg.remove(), 4000);
     }

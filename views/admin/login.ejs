@@ -5,20 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login - Berani Cerdas</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Menyelaraskan tema gradasi agar serasi dengan halaman dashboard utama */
+    body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); }
+  </style>
 </head>
-<body class="bg-gradient-to-br from-blue-600 to-blue-800 min-h-screen flex items-center justify-center px-4">
+<body class="min-h-screen flex items-center justify-center px-4">
   <div class="w-full max-w-md">
-    <div class="bg-white rounded-3xl shadow-2xl p-8">
+    <div class="bg-white rounded-3xl card-shadow p-8">
       <div class="text-center mb-8">
         <div class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-4xl">
           🎓
         </div>
-        <h1 class="mt-5 text-3xl font-extrabold text-gray-900">Berani Cerdas</h1>
-        <p class="mt-2 text-gray-500">Panel Admin</p>
+        <h1 class="mt-5 text-3xl font-extrabold text-gray-900 tracking-tight">Berani Cerdas</h1>
+        <p class="mt-2 text-sm text-slate-500">Panel Admin Portal Beasiswa</p>
       </div>
 
-      <% if (error) { %>
-        <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 animate-bounce">
           ⚠️ <%= error %>
         </div>
       <% } %>
@@ -30,7 +35,7 @@
           <input
             type="text"
             name="username"
-            placeholder="Masukkan username (contoh: kepala_admin_kel7)..."
+            placeholder="Masukkan username (contoh: kepala_admin)..."
             required
             autofocus
             class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -48,12 +53,12 @@
           />
         </div>
 
-        <button type="submit" class="w-full rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700">
-          🔓 Login
+        <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 py-3.5 text-sm font-bold text-white transition hover:opacity-90 shadow-md">
+          🔓 Masuk Panel Kontrol
         </button>
       </form>
 
-      <p class="mt-6 text-center text-sm text-slate-500">Versi 2.0 - Admin Control Panel</p>
+      <p class="mt-6 text-center text-xs text-slate-400">Versi 2.0 — OpenClaw Powered Infrastructure</p>
     </div>
   </div>
 </body>

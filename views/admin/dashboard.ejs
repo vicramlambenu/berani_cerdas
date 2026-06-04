@@ -14,6 +14,7 @@
 <body class="min-h-screen p-4 md:p-8 text-slate-900">
   <div class="mx-auto max-w-6xl">
     
+    <!-- HEADER -->
     <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">🎓 Berani Cerdas Admin</h1>
@@ -24,9 +25,15 @@
       </a>
     </div>
 
+    <!-- NAVIGATION MENU -->
     <div class="mb-8 flex flex-wrap gap-4">
       <a href="/admin/ai-config" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-cyan-600 hover:to-blue-700 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
         ⚙️ Pengaturan AI & Knowledge Base
+      </a>
+
+      <!-- TOMBOL BARU: Mengarah ke halaman tiket pengaduan luar konteks -->
+      <a href="/admin/tickets" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-amber-600 hover:to-orange-700 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
+        📌 Tiket Pengaduan Admin <% if (typeof pendingTicketsCount !== 'undefined' && pendingTicketsCount > 0) { %> <span class="ml-1 px-2 py-0.5 text-xs bg-red-500 rounded-full animate-pulse"><%= pendingTicketsCount %></span> <% } %>
       </a>
 
       <% if (adminRole === 'kepala admin') { %>
@@ -35,11 +42,20 @@
         </a>
       <% } %>
     </div>
-    <div class="grid gap-6 md:grid-cols-3 mb-8">
+
+    <!-- STATS CARDS -->
+    <div class="grid gap-6 md:grid-cols-4 mb-8"> <!-- Mengubah grid-cols-3 menjadi grid-cols-4 -->
       <div class="rounded-3xl bg-white p-6 card-shadow">
         <p class="text-sm font-semibold text-slate-500">Total Users</p>
         <h2 class="mt-4 text-4xl font-black text-blue-600"><%= users.length %></h2>
       </div>
+
+      <!-- CARD BARU: Menampilkan jumlah antrean pertanyaan luar konteks -->
+      <div class="rounded-3xl bg-white p-6 card-shadow">
+        <p class="text-sm font-semibold text-slate-500">Tiket Pending (Luar Konteks)</p>
+        <h2 class="mt-4 text-4xl font-black text-amber-500"><%= typeof pendingTicketsCount !== 'undefined' ? pendingTicketsCount : 0 %></h2>
+      </div>
+
       <div class="rounded-3xl bg-white p-6 card-shadow">
         <p class="text-sm font-semibold text-slate-500">Status</p>
         <h2 class="mt-4 text-2xl font-bold text-emerald-600">🟢 Online</h2>
@@ -50,6 +66,7 @@
       </div>
     </div>
 
+    <!-- BROADCAST FORM -->
     <div class="mb-8 rounded-3xl bg-white p-8 card-shadow">
       <div class="mb-8 flex items-center gap-3 text-gray-800">
         <span class="text-4xl">📢</span>
@@ -85,6 +102,7 @@
       </form>
     </div>
 
+    <!-- USERS TABLE -->
     <div class="rounded-3xl bg-white p-8 card-shadow">
       <div class="mb-6 flex items-center gap-3 text-gray-800">
         <span class="text-3xl">👥</span>
@@ -114,6 +132,7 @@
         </table>
       </div>
     </div>
+    
   </div>
 </body>
 </html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tiket Pengaduan - Berani Cerdas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-8 text-slate-900">
+  <div class="mx-auto max-w-5xl">
+    
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-800">📌 Tiket Pengaduan Pendaftar</h1>
+        <p class="text-slate-500">Pertanyaan luar konteks yang butuh jawaban manual admin</p>
+      </div>
+      <a href="/admin" class="rounded-xl bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">⬅️ Kembali</a>
+    </div>
+
+    <div class="space-y-6">
+      <% if (tickets.length === 0) { %>
+        <div class="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-md">
+          🎉 Tidak ada tiket pengaduan aktif saat ini.
+        </div>
+      <% } %>
+
+      <% tickets.forEach(function(t) { %>
+        <div class="rounded-2xl bg-white p-6 shadow-md border-l-4 <%= t.status === 'pending' ? 'border-amber-500' : 'border-emerald-500' %>">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <span class="font-bold text-slate-800"><%= t.sender_name %></span>
+              <span class="ml-2 font-mono text-xs text-slate-400">(ID: <%= t.chat_id %>)</span>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold <%= t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700' %>">
+              <%= t.status.toUpperCase() %>
+            </span>
+          </div>
+          
+          <p class="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+            "<%= t.user_question %>"
+          </p>
+
+          <% if (t.status === 'pending') { %>
+            <form action="/admin/tickets/reply" method="POST" class="mt-4 flex gap-3">
+              <input type="hidden" name="ticket_id" value="<%= t.id %>">
+              <input type="hidden" name="chat_id" value="<%= t.chat_id %>">
+              <input type="text" name="jawaban_admin" placeholder="Tulis jawaban manual Anda di sini..." required class="flex-1 rounded-xl border border-slate-300 px-4 py-2 outline-none focus:border-blue-500">
+              <button type="submit" class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                🚀 Kirim Balasan
+              </button>
+            </form>
+          <% } else { %>
+            <p class="text-xs text-emerald-600 font-medium">✅ Tiket ini telah selesai dijawab oleh tim admin.</p>
+          <% } %>
+        </div>
+      <% }); %>
+    </div>
+
+  </div>
+</body>
+</html>

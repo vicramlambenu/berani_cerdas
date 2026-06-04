@@ -1,21 +1,21 @@
 const express = require('express');
 const multer = require('multer');
 
-// ==========================================
-// MULTER CONFIG (Pindah ke MemoryStorage agar tidak crash di Vercel)
-// ==========================================
+// ===================================================================
+// MULTER CONFIG (Menggunakan MemoryStorage agar aman dari crash di Vercel)
+// ===================================================================
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
- * Setup Admin Routes (Mendukung Multi-role, Log Sistem, dan Knowledge Base AI)
+ * Setup Admin Routes (Mendukung Multi-role, Log Sistem, Knowledge Base AI, Tiket Pengaduan, dan Tambah Staff)
  */
 function setupAdminRoutes(supabase, bot, catatLog) {
     const router = express.Router(); 
 
-    // ==========================================
+    // ===================================================================
     // MIDDLEWARE UNTUK CHECK LOGIN & USER DATA
-    // ==========================================
+    // ===================================================================
     const checkLogin = (req, res, next) => {
         if (req.session && req.session.adminLoggedIn) {
             next();
@@ -33,22 +33,21 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     };
 
-    // ==========================================
+    // ===================================================================
     // LOGIN PAGE
-    // ==========================================
+    // ===================================================================
     router.get('/login', (req, res) => {
         const error = req.query.error ? 'Username atau Password salah!' : '';
         res.render('admin/login', { error });
     });
 
-    // ==========================================
-    // DO LOGIN (Menembak ke tabel 'admins' yang valid)
-    // ==========================================
+    // ===================================================================
+    // DO LOGIN (Mencocokkan ke tabel 'admins' di database Supabase)
+    // ===================================================================
     router.post('/do-login', async (req, res) => {
         const { username, password } = req.body;
         
         try {
-            // Memastikan pencarian mengarah ke tabel 'admins' sesuai data asli di Supabase
             const { data: admin, error } = await supabase
                 .from('admins')
                 .select('*')
@@ -59,7 +58,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             if (error) throw error;
 
             if (admin) {
-                // Menyimpan informasi akun admin ke dalam session data
+                // Menyimpan data informasi hak akses ke dalam session
                 req.session.adminLoggedIn = true;
                 req.session.adminUser = admin.username;
                 req.session.adminRole = admin.role; // 'kepala admin' atau 'admin'
@@ -79,20 +78,32 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
-    // ==========================================
-    // DASHBOARD MAIN VIEW
-    // ==========================================
+    // ===================================================================
+    // DASHBOARD MAIN VIEW (Menghitung Statistik User & Tiket Pengaduan)
+    // ===================================================================
     router.get('/', checkLogin, async (req, res) => {
         try {
-            const { data: users, error } = await supabase
+            // 1. Mengambil data subscribers dari Telegram yang terdaftar
+            const { data: users, error: userErr } = await supabase
                 .from('subscribers')
                 .select('*');
 
-            if (error) throw error;
+            if (userErr) throw userErr;
+
+            // 2. QUERY: Hitung jumlah antrean tiket pending dari pertanyaan luar konteks
+            const { count: pendingTicketsCount, error: ticketErr } = await supabase
+                .from('admin_tickets')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending');
+
+            if (ticketErr) {
+                console.error("Gagal menghitung statistik tiket:", ticketErr.message);
+            }
             
-            // Melemparkan data user session agar tampilan menu di dashboard.ejs bisa dinamis
+            // Mengirimkan seluruh variabel pendukung ke file dashboard.ejs
             res.render('admin/dashboard', { 
                 users: users || [], 
+                pendingTicketsCount: pendingTicketsCount || 0,
                 adminUser: req.session.adminUser, 
                 adminRole: req.session.adminRole 
             });
@@ -100,15 +111,82 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             console.error(err);
             res.render('admin/dashboard', { 
                 users: [], 
+                pendingTicketsCount: 0,
                 adminUser: req.session.adminUser, 
                 adminRole: req.session.adminRole 
             });
         }
     });
 
-    // ==========================================
-    // BROADCAST TELEGRAM (Sinkron dengan tabel broadcast_logs & system_logs)
-    // ==========================================
+    // ===================================================================
+    // 📌 VIEW TABEL TIKET PENGADUAN (Halaman khusus data Out of Scope)
+    // ===================================================================
+    router.get('/tickets', checkLogin, async (req, res) => {
+        try {
+            // Menampilkan riwayat pesan yang gagal dijawab otomatis oleh AI
+            const { data: tickets, error } = await supabase
+                .from('admin_tickets')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            res.render('admin/tickets', {
+                tickets: tickets || [],
+                adminUser: req.session.adminUser,
+                adminRole: req.session.adminRole
+            });
+        } catch (err) {
+            console.error("Gagal memuat halaman tiket:", err.message);
+            res.status(500).send("Gagal mengambil daftar data tiket pengaduan.");
+        }
+    });
+
+    // ===================================================================
+    // 📌 PROSES BALAS TIKET MANUAL VIA TELEGRAM (HANYA KEPALA ADMIN)
+    // ===================================================================
+    router.post('/tickets/reply', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+        const { ticket_id, chat_id, jawaban_admin } = req.body;
+
+        try {
+            // 1. Kirim pesan balasan dari admin langsung ke Telegram pendaftar
+            if (bot && bot.telegram) {
+                await bot.telegram.sendMessage(
+                    chat_id,
+                    `✉️ *JAWABAN MANUAL DARI ADMIN*\n\n` +
+                    `Pertanyaan Anda sebelumnya telah ditinjau oleh tim administrator. Berikut jawaban resmi kami:\n\n` +
+                    `_"${jawaban_admin}"_`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+
+            // 2. Update status tiket pengaduan di Supabase menjadi selesai ('resolved')
+            const { error } = await supabase
+                .from('admin_tickets')
+                .update({ status: 'resolved' })
+                .eq('id', ticket_id);
+
+            if (error) throw error;
+
+            // 📜 Catat riwayat penanganan keluhan ke log audit trail
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser,
+                    req.session.adminRole,
+                    `Membalas manual tiket pengaduan ID ${ticket_id} ke Chat ID ${chat_id}`
+                );
+            }
+
+            res.redirect('/admin/tickets?success=1');
+        } catch (err) {
+            console.error("Gagal membalas tiket pengaduan:", err.message);
+            res.status(500).send("Terjadi kesalahan saat mengirim jawaban manual.");
+        }
+    });
+
+    // ===================================================================
+    // BROADCAST TELEGRAM (Bisa diakses oleh Kepala Admin dan Admin Staff)
+    // ===================================================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
         try {
@@ -182,10 +260,10 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
-    // ==========================================
-    // ⚙️ VIEW EDIT KNOWLEDGE BASE AI
-    // ==========================================
-    router.get('/ai-config', checkLogin, async (req, res) => {
+    // ===================================================================
+    // ⚙️ VIEW EDIT KNOWLEDGE BASE AI & MANAJEMEN USER (HANYA KEPALA ADMIN)
+    // ===================================================================
+    router.get('/ai-config', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         try {
             const { data: config, error } = await supabase
                 .from('ai_config')
@@ -195,8 +273,10 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
+            // Melemparkan objek data 'req' agar halaman EJS bisa membaca status '?user_added=1' di URL
             res.render('admin/ai-config', { 
                 config, 
+                req: req,
                 adminUser: req.session.adminUser, 
                 adminRole: req.session.adminRole 
             });
@@ -205,10 +285,10 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
-    // ==========================================
-    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI (Dinamis ke id: 1)
-    // ==========================================
-    router.post('/ai-config/save', checkLogin, async (req, res) => {
+    // ===================================================================
+    // 💾 PROSES SIMPAN KNOWLEDGE BASE AI (HANYA KEPALA ADMIN)
+    // ===================================================================
+    router.post('/ai-config/save', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         const { system_instruction, knowledge_base } = req.body;
         
         try {
@@ -238,9 +318,49 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
-    // ==========================================
-    // 📋 VIEW TABEL LOG SISTEM (Hanya Kepala Admin)
-    // ==========================================
+    // ===================================================================
+    // ➕ PROSES TAMBAH AKUN STAFF/ADMIN BARU (HANYA KEPALA ADMIN)
+    // ===================================================================
+    router.post('/ai-config/add-admin', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+        const { new_username, new_password, new_role } = req.body;
+
+        try {
+            // Suntikkan data akun baru ke tabel 'admins' di Supabase
+            const { error } = await supabase
+                .from('admins')
+                .insert({
+                    username: new_username.trim(),
+                    password: new_password, 
+                    role: new_role, 
+                    created_at: new Date()
+                });
+
+            if (error) {
+                if (error.code === '23505') {
+                    return res.status(400).send("Gagal: Username tersebut sudah terdaftar di sistem.");
+                }
+                throw error;
+            }
+
+            // 📜 Catat aktivitas penambahan staff ke log audit trail
+            if (catatLog) {
+                await catatLog(
+                    req.session.adminUser,
+                    req.session.adminRole,
+                    `Menambahkan akun administrator baru: Username [${new_username}] dengan Role [${new_role}]`
+                );
+            }
+
+            res.redirect('/admin/ai-config?user_added=1');
+        } catch (err) {
+            console.error("Gagal menambah akun admin baru:", err.message);
+            res.status(500).send("Terjadi kesalahan internal saat mendaftarkan akun baru.");
+        }
+    });
+
+    // ===================================================================
+    // 📋 VIEW TABEL LOG SISTEM (HANYA KEPALA ADMIN)
+    // ===================================================================
     router.get('/logs', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         try {
             const { data: logs, error } = await supabase
@@ -261,13 +381,12 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // 💾 🛠️ FITUR GENERATOR EKSPOR PDF RESMI (Dinamis dari Supabase)
+    // 💾 FITUR GENERATOR EKSPOR PDF RESMI (HANYA KEPALA ADMIN)
     // ===================================================================
     router.get('/download-log', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         const PDFDocument = require('pdfkit-table');
 
         try {
-            // 1. Ambil riwayat log audit aktual langsung dari database Supabase
             const { data: logs, error } = await supabase
                 .from('system_logs')
                 .select('*')
@@ -275,27 +394,23 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // 2. Inisialisasi dokumen kertas A4
             const doc = new PDFDocument({ margin: 30, size: 'A4' });
 
-            // Pengaturan Headers respons transmisi berkas biner PDF
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Audit_Log_Berani_Cerdas.pdf');
             
             doc.pipe(res);
 
-            // 3. DESAIN DOKUMEN (Kop Surat Formal Kepresidenan / Organisasi)
             doc.fontSize(18).font('Helvetica-Bold').text('PROGRAM BEASISWA BERANI CERDAS', { align: 'center' });
             doc.fontSize(10).font('Helvetica').text('Sekretariat Jenderal Admin Utama - Provinsi Sulawesi Tengah', { align: 'center' });
             doc.moveDown(0.5);
-            doc.moveTo(30, doc.y).lineTo(565, doc.y).stroke('#4f46e5'); // Garis pembatas warna indigo
+            doc.moveTo(30, doc.y).lineTo(565, doc.y).stroke('#4f46e5'); 
             doc.moveDown(1.5);
 
             doc.fontSize(13).font('Helvetica-Bold').text('LAPORAN AUDIT TRAIL AKTIVITAS SISTEM', { align: 'left' });
             doc.fontSize(9).font('Helvetica-Oblique').text(`Dieksport Oleh: ${req.session.adminUser} (${req.session.adminRole}) | Tanggal Cetak: ${new Date().toLocaleString('id-ID')}`, { align: 'left' });
             doc.moveDown(1.5);
 
-            // 4. STRUKTUR FORMAT TABEL PDF
             const table = {
                 title: "Daftar Aktivitas Log yang Terekam di Database:",
                 headers: [
@@ -312,25 +427,21 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 }))
             };
 
-            // Gambar tabel ke kanvas PDF
             await doc.table(table, {
                 prepareHeader: () => doc.font("Helvetica-Bold").fontSize(10).fillColor("#1e293b"),
                 prepareRow: (row, index, column, rowNumber, rectRow) => doc.font("Helvetica").fontSize(9).fillColor("#334155")
             });
 
-            // 5. KOLOM VALIDASI TANDA TANGAN KEPALA ADMINISTRATOR
             doc.moveDown(3);
-            if (doc.y > 700) doc.addPage(); // Buka halaman baru jika area bawah kertas sisa sedikit
+            if (doc.y > 700) doc.addPage(); 
             
             doc.fontSize(10).font('Helvetica').text('Mengetahui,', 400);
             doc.moveDown(2.5);
             doc.font('Helvetica-Bold').text(`${req.session.adminUser.toUpperCase()}`, 400);
             doc.font('Helvetica').text(`Kepala Administrator`, 400);
 
-            // Tutup dan kirim aliran PDF ke browser
             doc.end();
 
-            // 📜 Catat log aksi konversi & ekspor PDF ini ke sistem
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser, 
@@ -348,11 +459,10 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // 📊 🛠️ FITUR GENERATOR EKSPOR SPREADSHEET CSV (Dinamis dari Supabase)
+    // 📊 FITUR GENERATOR EKSPOR SPREADSHEET CSV (HANYA KEPALA ADMIN)
     // ===================================================================
     router.get('/download-csv', checkLogin, hanyaKepalaAdmin, async (req, res) => {
         try {
-            // 1. Tarik data log audit trail terbaru dari Supabase
             const { data: logs, error } = await supabase
                 .from('system_logs')
                 .select('*')
@@ -360,31 +470,25 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // 2. Konfigurasi headers respons transmisi berkas CSV Excel
             res.setHeader('Content-Type', 'text/csv');
             res.setHeader('Content-Disposition', 'attachment; filename=Laporan_Audit_Log_Berani_Cerdas.csv');
 
-            // 3. Tambahkan BOM UTF-8 (\uFEFF) agar karakter lokal dan simbol terbaca rapi saat di-double click di MS Excel
-            let csvContent = '\uFEFF';
+            let csvContent = '\uFEFF'; 
             csvContent += 'Waktu (WITA),Operator,Role,Deskripsi Tindakan Sistem\n';
 
-            // 4. Transformasikan data array dari database menjadi baris-baris string CSV
             if (logs && logs.length > 0) {
                 logs.forEach(log => {
-                    const waktu = new Date(log.waktu).toLocaleString('id-ID').replace(/,/g, ''); // Amankan koma penanggalan
+                    const waktu = new Date(log.waktu).toLocaleString('id-ID').replace(/,/g, ''); 
                     const operator = log.operator || '-';
                     const role = (log.role || '-').toUpperCase();
-                    // Bungkus kolom tindakan dengan kutip ganda dan bersihkan tanda petik internal agar format CSV valid
                     const aksi = `"${(log.aksi || '-').replace(/"/g, '""')}"`; 
 
                     csvContent += `${waktu},${operator},${role},${aksi}\n`;
                 });
             }
 
-            // 5. Lempar string ke browser
             res.status(200).send(csvContent);
 
-            // 📜 Catat aktivitas ekspor spreadsheet ini ke database
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser, 
@@ -401,9 +505,9 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         }
     });
 
-    // ==========================================
+    // ===================================================================
     // LOGOUT
-    // ==========================================
+    // ===================================================================
     router.get('/logout', checkLogin, async (req, res) => {
         try {
             if (catatLog) {
