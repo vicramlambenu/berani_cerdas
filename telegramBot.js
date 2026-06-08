@@ -1,4 +1,5 @@
 const { Telegraf } = require('telegraf');
+const axios = require('axios'); 
 
 function initTelegramBot(token) {
     if (!token) {
@@ -11,7 +12,9 @@ function initTelegramBot(token) {
 function setupBotHandlers(botInstance, db) {
     if (!botInstance) return;
 
-    // 1. Handler Perintah /start
+    // ====================================================================
+    // 1. HANDLER PERINTAH /START (DENGAN INLINE KEYBOARD FAQ INSTAN)
+    // ====================================================================
     botInstance.start(async (ctx) => {
         const chatId = ctx.chat.id;
         const firstName = ctx.from.first_name || 'User';
@@ -24,17 +27,85 @@ function setupBotHandlers(botInstance, db) {
             console.error('Gagal simpan subscriber:', err.message);
         }
 
-        ctx.replyWithMarkdown(
+        // Mengirim pesan selamat datang beserta tombol FAQ interaktif yang menempel di bawah teks
+        return ctx.replyWithMarkdown(
             `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas! 🎓\n\n` +
-            `Silakan ajukan pertanyaan Anda langsung di sini. AI akan menjawab secara otomatis berdasarkan basis pengetahuan resmi.`
+            `Silakan ajukan pertanyaan Anda langsung di sini. AI akan menjawab secara otomatis berdasarkan basis pengetahuan resmi.\n\n` +
+            `Atau, Anda bisa klik salah satu *Pertanyaan Umum (FAQ)* di bawah ini untuk mendapatkan jawaban instan langsung dari sistem:`,
+            {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '📋 Apa saja syarat pendaftaran?', callback_data: 'faq_syarat' }],
+                        [{ text: '⏳ Kapan batas akhir pendaftaran?', callback_data: 'faq_deadline' }],
+                        [{ text: '💰 Berapa total dana beasiswanya?', callback_data: 'faq_dana' }],
+                        [{ text: '📞 Hubungi Admin Utama', callback_data: 'faq_admin' }]
+                    ]
+                }
+            }
         );
     });
 
-    // 2. Handler Perintah /help
+    // ====================================================================
+    // 2. HANDLER PERINTAH /HELP
+    // ====================================================================
     botInstance.help((ctx) => ctx.replyWithMarkdown('Kirim pertanyaan seputar informasi pendaftaran beasiswa secara langsung.'));
 
     // ====================================================================
-    // 3. HANDLER UTAMA PESAN TEKS (INTEGRASI GEMINI + STRICT CONTEXT + ERROR 429)
+    // 3. HANDLER UNTUK MERESPONS KLIK TOMBOL FAQ (BYPASS AI - 100% GRATIS TOKEN)
+    // ====================================================================
+    botInstance.action('faq_syarat', async (ctx) => {
+        await ctx.answerCbQuery(); // Menghilangkan efek loading di tombol Telegram
+        return ctx.replyWithMarkdown(
+            `📌 *SYARAT UTAMA PENDAFTARAN BEASISWA BERANI CERDAS:*\n\n` +
+            `1. Mahasiswa aktif D3/D4/S1 (Minimal sedang menempuh semester 2, maksimal semester 8).\n` +
+            `2. Memiliki Kartu Tanda Penduduk (KTP) asli Provinsi *Sulawesi Tengah*.\n` +
+            `3. IPK minimal 3.00 dibuktikan dengan Lembar Transkrip Nilai resmi.\n` +
+            `4. Tidak sedang menerima bantuan beasiswa aktif dari instansi atau lembaga lain.`
+        );
+    });
+
+    botInstance.action('faq_deadline', async (ctx) => {
+        await ctx.answerCbQuery();
+        return ctx.replyWithMarkdown(
+            `⏳ *BATAS WAKTU PROGRAM BEASISWA:*\n\n` +
+            `Pendaftaran berkas digital gelombang saat ini dibuka hingga tanggal *31 Juli 2026*.\n` +
+            `Sangat disarankan untuk mengunggah dokumen sebelum batas akhir demi menghindari kepadatan server.`
+        );
+    });
+
+    botInstance.action('faq_dana', async (ctx) => {
+        await ctx.answerCbQuery();
+        return ctx.replyWithMarkdown(
+            `💰 *ALOKASI DANA BANTUAN BIAYA PENDIDIKAN:*\n\n` +
+            `Pendaftar yang dinyatakan lulus seleksi akhir akan menerima dana stimulan pendidikan sebesar *Rp 6.000.000,- per semester* yang disalurkan langsung ke rekening virtual mahasiswa.`
+        );
+    });
+
+    botInstance.action('faq_admin', async (ctx) => {
+        await ctx.answerCbQuery();
+        return ctx.replyWithMarkdown(
+            `📞 *LAYANAN BANTUAN MANUAL (HELP-DESK):*\n\n` +
+            `Jika memiliki kendala teknis sistem di luar kemampuan AI, silakan hubungi kesekretariatan resmi kami di:\n\n` +
+            `• 📨 Alamat Email: admin@beranicerdas.id\n` +
+            `• 📱 Telegram Utama Admin: @kepala_admin\n` +
+            `• 🏢 Kantor: Gedung Dinas Pendidikan dan Kebudayaan Daerah Sulteng, Kota Palu.`
+        );
+    });
+
+    // ====================================================================
+    // 3B. BYPASS SAPAAN RAMAH (ANTI MASUK TIKET OUT-OF-SCOPE ADMIN)
+    // ====================================================================
+    // Menggunakan regex fleksibel yang menangkap variasi sapaan tanpa peduli huruf besar/kecil
+    botInstance.hears(/^(halo|hai|selamat pagi|selamat siang|selamat sore|selamat malam|p|assalamualaikum|permisi)/i, (ctx) => {
+        const firstName = ctx.from.first_name || 'User';
+        return ctx.replyWithMarkdown(
+            `Halo juga *${firstName}*! 👋 Ada yang bisa saya bantu terkait informasi resmi Beasiswa Berani Cerdas Provinsi Sulawesi Tengah?\n\n` +
+            `Silakan ketik pertanyaan spesifik Anda atau langsung klik salah satu menu tombol FAQ di atas ya!`
+        );
+    });
+
+    // ====================================================================
+    // 4. HANDLER UTAMA PESAN TEKS (JIKA USER MENGETIK MANUAL -> DIJAWAB OLEH AI)
     // ====================================================================
     botInstance.on('text', async (ctx) => {
         const userMessage = ctx.message.text;
@@ -42,38 +113,71 @@ function setupBotHandlers(botInstance, db) {
         const username = ctx.from.username || 'Tanpa Username';
         const firstName = ctx.from.first_name || 'User';
 
+        // 🚨 PROTEKSI ANTI-LEAKAGE: Mencegah pembacaan berkas identitas sistem
+        if (userMessage.toLowerCase().includes('profile') || userMessage.toLowerCase().includes('profil')) {
+            return ctx.reply("Maaf, informasi profil personal tidak tersedia di sistem ini. Silakan ajukan pertanyaan seputar informasi resmi Beasiswa Berani Cerdas.");
+        }
+
+        // Tampilkan indikator mengetik di Telegram agar interaktif
+        await ctx.sendChatAction('typing');
+
         try {
+            let systemInstructionText = '';
             let knowledgeBaseText = '';
 
-            // Ambil data Knowledge Base yang terstruktur dari Supabase
+            // 1. Ambil Data Aturan Sistem & Basis Pengetahuan Terupdate dari Supabase
             if (db) {
-                const { data, error } = await db.from('ai_config').select('knowledge_base').single();
+                const { data, error } = await db
+                    .from('ai_config')
+                    .select('system_instruction, knowledge_base')
+                    .eq('id', 1)
+                    .maybeSingle();
+                
                 if (!error && data) {
+                    systemInstructionText = data.system_instruction;
                     knowledgeBaseText = data.knowledge_base;
                 }
             }
 
-            // ----------------------------------------------------------------
-            // TEMPAT PEMANGGILAN SDK GEMINI ASLI KAMU (Simulasi & Injeksi Prompt)
-            // ----------------------------------------------------------------
-            // Di dalam pemanggilan asli kalian nanti, pastikan system instruction
-            // atau prompt mewajibkan AI menyertakan teks "[OUT_OF_SCOPE]" jika 
-            // pertanyaan mendeteksi topik di luar Beasiswa Berani Cerdas[cite: 2].
-            //
-            // Contoh implementasi respon teks dari model google/gemini-2.0-flash-lite:
-            let replyText = "Fitur AI berhasil merespons pesan."; 
+            // 2. PROSES KONEKSI KE ENGINE OPENCLAW / GOOGLE GEMINI API
+            let replyText = '';
             
-            // Catatan: Jika kalian mengetes pertanyaan di luar konteks (misal: "cara masak mi"),
-            // pastikan backend/AI kalian mengembalikan string seperti di bawah ini:[cite: 2]
-            // replyText = "[OUT_OF_SCOPE] Maaf, pertanyaan Anda berada di luar ruang lingkup informasi resmi Beasiswa Berani Cerdas. Pertanyaan ini telah otomatis kami teruskan ke tim admin untuk ditinjau lebih lanjut.";
+            try {
+                const aiResponse = await axios.post('http://localhost:3000/api/ai-chat', {
+                    message: userMessage,
+                    system_instruction: systemInstructionText,
+                    knowledge_base: knowledgeBaseText,
+                    history: []
+                });
+                
+                if (aiResponse.data && aiResponse.data.success) {
+                    replyText = aiResponse.data.reply || aiResponse.data.message || aiResponse.data.text || "";
+                }
+            } catch (aiErr) {
+                if (aiErr.response && aiErr.response.status === 429) {
+                    throw aiErr.response; 
+                }
 
-            // 🔍 VALIDASI CEK PAKAI INDEKS KONTEKS[cite: 2]
-            if (replyText.includes("[OUT_OF_SCOPE]")) {
-                // Hapus tag rahasia [OUT_OF_SCOPE] sebelum dikirim ke pendaftar di Telegram agar rapi
-                const cleanReply = replyText.replace("[OUT_OF_SCOPE]", "").trim();
+                console.warn("⚠️ Gagal kontak OpenClaw API, menjalankan sistem pertahanan filter teks lokal.");
+                
+                const keywords = ['beasiswa', 'berani', 'cerdas', 'daftar', 'syarat', 'dana', 'biaya', 'sulawesi', 'tengah', 'sulteng', 'kuliah', 'pendaftaran', 'halo', 'hai', 'admin'];
+                const isMatch = keywords.some(keyword => userMessage.toLowerCase().includes(keyword));
+                
+                if (!isMatch) {
+                    replyText = "[OUT_OF_SCOPE]";
+                } else {
+                    replyText = "Terima kasih atas pertanyaan Anda mengenai Beasiswa Berani Cerdas. Saat ini server sinkronisasi memori utama kami sedang sibuk, mohon hubungi admin melalui menu bantuan.";
+                }
+            }
+
+            // 3. VALIDASI FILTER CONTEXT & PENGALIHAN LOG OTOMATIS
+            if (replyText.includes("[OUT_OF_SCOPE]") || replyText.trim() === "") {
+                
+                const cleanReply = replyText.replace("[OUT_OF_SCOPE]", "").trim() || 
+                    "Maaf, pertanyaan Anda berada di luar ruang lingkup informasi resmi Beasiswa Berani Cerdas. Pertanyaan ini telah otomatis kami teruskan ke tim admin untuk ditinjau lebih lanjut.";
+                
                 await ctx.reply(cleanReply);
 
-                // Jalankan Aksi Otomatis: Forward data pertanyaan ke tabel admin_tickets di Supabase[cite: 2]
                 if (db) {
                     try {
                         await db.from('admin_tickets').insert({
@@ -83,39 +187,43 @@ function setupBotHandlers(botInstance, db) {
                             status: 'pending',
                             created_at: new Date()
                         });
-                        console.log(`📌 [FORWARD SUCCESS] Pertanyaan luar konteks dari ${firstName} berhasil diteruskan ke Supabase![cite: 2]`);
+                        
+                        console.log("\n--------------------------------------------------------");
+                        console.log(`💡 [LOG FILTER AI] User [${firstName}] bertanya di luar konteks!`);
+                        console.log(`💬 Isi Pertanyaan : "${userMessage}"`);
+                        console.log(`➡️  Tindakan Sistem: Otomatis mengisolasi data dan meneruskan ke Supabase.`);
+                        console.log("--------------------------------------------------------\n");
+
                     } catch (dbErr) {
                         console.error('⚠️ Gagal memasukkan data tiket ke Supabase:', dbErr.message);
                     }
                 }
 
             } else {
-                // Jika pertanyaan seputar beasiswa, kirim balasan normal dari AI ke user Telegram
                 await ctx.reply(replyText);
             }
 
         } catch (error) {
-            // ================================================================
-            // DETEKSI OTOMATIS: JIKA API GEMINI HABIS KUOTA / LIMIT (429)[cite: 1]
-            // ================================================================
+            // DETEKSI KUOTA HABIS (429) & ROTASI API KEY AUTOMATIC
             if (error.status === 429 || (error.message && error.message.includes("RESOURCE_EXHAUSTED"))) {
                 
-                // Menggunakan string biasa yang lurus tanpa terputus barisnya
                 console.error("\n========================================================");
-                console.error("🚨 [PERINGATAN SISTEM] API GEMINI SUDAH MENCAPAI LIMIT!");
-                console.error("👉 Kuota harian gratis pada akun Google AI Studio ini telah habis.");
-                console.error("👉 MODEL TERDAMPAK: google/gemini-2.5-flash-lite");
-                console.error("👉 TINDAKAN: Buka file .env / OpenClaw untuk mengganti API Key baru.");
+                console.error("🚨 [PERINGATAN SISTEM] API GEMINI SUDAH MENCAPAI LIMIT! (429)");
+                console.error("👉 Menembak sinyal rotasi otomatis ke sistem failover backend...");
                 console.error("========================================================\n");
 
-                // Menggunakan Template Literals (tanda backtick ` `) agar aman saat menulis teks panjang berbaris
+                try {
+                    await axios.post('http://localhost:3000/api/ai-chat', { trigger_rotation: true });
+                } catch (rotErr) {
+                    console.error("⚠️ Gagal mengirim sinyal rotasi ke rotator:", rotErr.message);
+                }
+
                 await ctx.reply(
-                    `⚠️ Sistem Beasiswa Berani Cerdas saat ini sedang menerima antrean yang sangat padat (Limit Kuota Terbaca). \n\n` +
-                    `Mohon mencoba kembali beberapa saat lagi atau hubungi pihak administrator teknis kami.`
+                    `⚠️ Sistem Beasiswa Berani Cerdas baru saja melakukan optimalisasi dan pengalihan jalur server otomatis.\n\n` +
+                    `Silakan kirim ulang pesan Anda barusan, AI siap melayani Anda kembali tanpa gangguan! 🔄✨`
                 );
 
             } else {
-                // Menangani kendala teknis non-limit lainnya (misal kegagalan koneksi database)
                 console.error('Error pada pemrosesan bot Telegram:', error.message);
                 await ctx.reply("⚠️ Terjadi kendala teknis internal saat memproses jawaban Anda. Mohon coba beberapa saat lagi.");
             }

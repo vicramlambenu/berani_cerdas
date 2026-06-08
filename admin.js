@@ -8,7 +8,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
- * Setup Admin Routes (Mendukung Multi-role, Log Sistem, Knowledge Base AI, Tiket Pengaduan, dan Tambah Staff)
+ * Setup Admin Routes (Mendukung Multi-role, Log Sistem, Knowledge Base AI, Tiket Pengaduan, Tambah Staff, dan Pantauan Kuota API)
  */
 function setupAdminRoutes(supabase, bot, catatLog) {
     const router = express.Router(); 
@@ -79,7 +79,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // DASHBOARD MAIN VIEW (Menghitung Statistik User & Tiket Pengaduan)
+    // DASHBOARD MAIN VIEW (Menghitung Statistik & Status API Key Rotator)
     // ===================================================================
     router.get('/', checkLogin, async (req, res) => {
         try {
@@ -99,13 +99,21 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             if (ticketErr) {
                 console.error("Gagal menghitung statistik tiket:", ticketErr.message);
             }
+
+            // 🔑 3. PARSING DATA ROTASI API KEY UNTUK DIKIRIM KE DASHBOARD VISUAL
+            const totalKeys = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',').length : 1;
+            
+            // Membaca index penunjuk global secara aman, default ke indeks 1 jika belum diinisialisasi
+            const activeKeyIndex = global.currentKeyIndex !== undefined ? global.currentKeyIndex + 1 : 1;
             
             // Mengirimkan seluruh variabel pendukung ke file dashboard.ejs
             res.render('admin/dashboard', { 
                 users: users || [], 
                 pendingTicketsCount: pendingTicketsCount || 0,
                 adminUser: req.session.adminUser, 
-                adminRole: req.session.adminRole 
+                adminRole: req.session.adminRole,
+                totalApiKeys: totalKeys,
+                activeKeyIndex: activeKeyIndex
             });
         } catch (err) {
             console.error(err);
@@ -113,7 +121,9 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 users: [], 
                 pendingTicketsCount: 0,
                 adminUser: req.session.adminUser, 
-                adminRole: req.session.adminRole 
+                adminRole: req.session.adminRole,
+                totalApiKeys: 1,
+                activeKeyIndex: 1
             });
         }
     });

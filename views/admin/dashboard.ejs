@@ -3,131 +3,194 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Dashboard - Berani Cerdas</title>
+  <title>Admin Dashboard — Berani Cerdas Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0b0f19;
+    }
+    .glow-effect {
+      box-shadow: 0 0 50px -10px rgba(99, 102, 241, 0.15);
+    }
+    .text-gradient {
+      background: linear-gradient(135deg, #67e8f9 0%, #6366f1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    /* Kustomisasi Scrollbar agar Elegan */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 text-slate-900">
-  <div class="mx-auto max-w-6xl">
+<body class="min-h-screen text-slate-300 p-4 md:p-8 relative overflow-x-hidden selection:bg-indigo-500/30 selection:text-indigo-200">
+
+  <div class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-900/10 blur-[120px] pointer-events-none"></div>
+  <div class="absolute bottom-[20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-cyan-900/10 blur-[120px] pointer-events-none"></div>
+
+  <div class="mx-auto max-w-6xl z-10 relative">
     
-    <!-- HEADER -->
-    <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-slate-900/40 border border-slate-800/60 backdrop-blur-md rounded-3xl p-6 glow-effect">
       <div>
-        <h1 class="text-4xl font-extrabold text-white drop-shadow-lg">🎓 Berani Cerdas Admin</h1>
-        <p class="mt-2 text-blue-100">Dashboard Administrator (<%= adminUser %> - <span class="capitalize"><%= adminRole %></span>)</p>
+        <h1 class="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          🎓 <span class="text-gradient">Berani Cerdas</span> Control Center
+        </h1>
+        <p class="mt-1 text-xs text-slate-400">
+          Operator Aktif: <span class="text-indigo-400 font-bold font-mono"><%= adminUser %></span> 
+          • Otoritas Level: <span class="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold tracking-wider"><%= adminRole %></span>
+        </p>
       </div>
-      <a href="/admin/logout" class="inline-flex items-center justify-center rounded-2xl bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 shadow-lg">
-        🚪 Logout
+      <a href="/admin/logout" class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-5 py-3 text-xs font-bold text-red-400 transition hover:bg-red-500 hover:text-white shadow-lg shadow-red-500/5">
+        <i class="fa-solid fa-right-from-bracket"></i> Keluar Sistem
       </a>
     </div>
 
-    <!-- NAVIGATION MENU -->
-    <div class="mb-8 flex flex-wrap gap-4">
-      <a href="/admin/ai-config" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-cyan-600 hover:to-blue-700 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
-        ⚙️ Pengaturan AI & Knowledge Base
+    <div class="mb-8 flex flex-wrap gap-3">
+      <a href="/admin/ai-config" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 px-5 py-3.5 text-xs font-bold text-cyan-400 transition hover:scale-[1.02] active:scale-[0.98] glow-effect">
+        <i class="fa-solid fa-sliders text-cyan-400"></i> Pengaturan Core AI & Knowledge Base
       </a>
 
-      <!-- TOMBOL BARU: Mengarah ke halaman tiket pengaduan luar konteks -->
-      <a href="/admin/tickets" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3.5 text-sm font-bold text-white transition hover:from-amber-600 hover:to-orange-700 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
-        📌 Tiket Pengaduan Admin <% if (typeof pendingTicketsCount !== 'undefined' && pendingTicketsCount > 0) { %> <span class="ml-1 px-2 py-0.5 text-xs bg-red-500 rounded-full animate-pulse"><%= pendingTicketsCount %></span> <% } %>
+      <a href="/admin/tickets" class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 px-5 py-3.5 text-xs font-bold text-amber-400 transition hover:scale-[1.02] active:scale-[0.98]">
+        <i class="fa-solid fa-clipboard-list text-amber-400"></i> Antrean Tiket Pengaduan 
+        <% if (typeof pendingTicketsCount !== 'undefined' && pendingTicketsCount > 0) { %> 
+          <span class="ml-1 px-2 py-0.5 text-[10px] font-black bg-red-500 text-white rounded-full animate-pulse shadow-md shadow-red-500/50"><%= pendingTicketsCount %></span> 
+        <% } %>
       </a>
 
       <% if (adminRole === 'kepala admin') { %>
-        <a href="/admin/logs" class="inline-flex items-center gap-2 rounded-2xl bg-slate-800 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-slate-900 shadow-lg hover:scale-[1.02] active:scale-[0.98]">
-          📋 Lihat Log Audit Sistem
+        <a href="/admin/logs" class="inline-flex items-center gap-2 rounded-2xl bg-slate-900 border border-slate-800 px-5 py-3.5 text-xs font-bold text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 hover:scale-[1.02]">
+          <i class="fa-solid fa-clock-history"></i> Riwayat Audit Trail Log
         </a>
       <% } %>
     </div>
 
-    <!-- STATS CARDS -->
-    <div class="grid gap-6 md:grid-cols-4 mb-8"> <!-- Mengubah grid-cols-3 menjadi grid-cols-4 -->
-      <div class="rounded-3xl bg-white p-6 card-shadow">
-        <p class="text-sm font-semibold text-slate-500">Total Users</p>
-        <h2 class="mt-4 text-4xl font-black text-blue-600"><%= users.length %></h2>
+    <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4 mb-8">
+      
+      <div class="rounded-3xl bg-slate-900/40 border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700/50 transition">
+        <div class="flex justify-between items-start">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Subscribers</p>
+          <span class="text-blue-400 bg-blue-500/10 w-7 h-7 rounded-lg flex items-center justify-center text-xs"><i class="fa-solid fa-users"></i></span>
+        </div>
+        <h2 class="mt-4 text-4xl font-black text-white tracking-tight font-mono"><%= users.length %></h2>
       </div>
 
-      <!-- CARD BARU: Menampilkan jumlah antrean pertanyaan luar konteks -->
-      <div class="rounded-3xl bg-white p-6 card-shadow">
-        <p class="text-sm font-semibold text-slate-500">Tiket Pending (Luar Konteks)</p>
-        <h2 class="mt-4 text-4xl font-black text-amber-500"><%= typeof pendingTicketsCount !== 'undefined' ? pendingTicketsCount : 0 %></h2>
+      <div class="rounded-3xl bg-slate-900/40 border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700/50 transition">
+        <div class="flex justify-between items-start">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tiket Luar Konteks</p>
+          <span class="text-amber-400 bg-amber-500/10 w-7 h-7 rounded-lg flex items-center justify-center text-xs"><i class="fa-solid fa-triangle-exclamation"></i></span>
+        </div>
+        <h2 class="mt-4 text-4xl font-black text-amber-400 tracking-tight font-mono"><%= typeof pendingTicketsCount !== 'undefined' ? pendingTicketsCount : 0 %></h2>
       </div>
 
-      <div class="rounded-3xl bg-white p-6 card-shadow">
-        <p class="text-sm font-semibold text-slate-500">Status</p>
-        <h2 class="mt-4 text-2xl font-bold text-emerald-600">🟢 Online</h2>
+      <div class="rounded-3xl bg-slate-900/40 border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700/50 transition">
+        <div class="flex justify-between items-start">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">API Router Monitor</p>
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-md shadow-emerald-500"></span>
+        </div>
+        <div>
+          <h2 class="mt-3 text-lg font-bold text-emerald-400 flex items-center gap-1.5">
+            🟢 Gateway Active
+          </h2>
+          <p class="mt-2 text-[10px] font-bold text-slate-400 bg-slate-950/60 rounded-xl p-2 border border-slate-800/80 font-mono">
+            🔑 Key: <span class="text-indigo-400 font-extrabold"><%= activeKeyIndex %></span> / <span class="text-slate-400 font-extrabold"><%= totalApiKeys %></span> (Rotator Pool)
+          </p>
+        </div>
       </div>
-      <div class="rounded-3xl bg-white p-6 card-shadow">
-        <p class="text-sm font-semibold text-slate-500">Broadcast</p>
-        <h2 class="mt-4 text-2xl font-bold text-purple-600">Ready</h2>
+
+      <div class="rounded-3xl bg-slate-900/40 border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700/50 transition">
+        <div class="flex justify-between items-start">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Broadcast Engine</p>
+          <span class="text-purple-400 bg-purple-500/10 w-7 h-7 rounded-lg flex items-center justify-center text-xs"><i class="fa-solid fa-bullhorn"></i></span>
+        </div>
+        <h2 class="mt-4 text-xl font-bold text-purple-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-check text-xs text-purple-400"></i> Ready to Dispatch
+        </h2>
       </div>
     </div>
 
-    <!-- BROADCAST FORM -->
-    <div class="mb-8 rounded-3xl bg-white p-8 card-shadow">
-      <div class="mb-8 flex items-center gap-3 text-gray-800">
-        <span class="text-4xl">📢</span>
-        <h2 class="text-2xl font-bold">Kirim Broadcast</h2>
+    <div class="mb-8 rounded-[2rem] bg-slate-900/40 border border-slate-800 p-6 md:p-8 glow-effect">
+      <div class="mb-6 flex items-center gap-3 border-b border-slate-800/80 pb-4">
+        <span class="text-2xl">📢</span>
+        <div>
+          <h2 class="text-xl font-bold text-white">Transmisi Pesan Massal</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Kirim pengumuman resmi berkas lampiran ke seluruh atau individu pendaftar Telegram.</p>
+        </div>
       </div>
 
-      <form action="/admin/broadcast" method="POST" enctype="multipart/form-data" class="space-y-6">
+      <form action="/admin/broadcast" method="POST" enctype="multipart/form-data" class="space-y-5">
         <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">Target Penerima</label>
-          <select name="target_chat_id" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
-            <option value="">📣 Kirim ke SEMUA User (<%= users.length %> user)</option>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Target Penerima Dokumen</label>
+          <select name="target_chat_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-xs font-semibold text-slate-300 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            <option value="">📣 Penyiaran Massal: Kirim ke SEMUA Pendaftar Terdata (<%= users.length %> User)</option>
             <% users.forEach(function(u) { %>
-              <option value="<%= u.chat_id %>">👤 <%= u.full_name || '-' %> (@<%= u.username || '-' %>)</option>
+              <option value="<%= u.chat_id %>">👤 <%= u.full_name || 'Tanpa Nama' %> (@<%= u.username || '-' %>) — [ID: <%= u.chat_id %>]</option>
             <% }); %>
           </select>
         </div>
 
         <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">Pesan</label>
-          <textarea name="pesan" rows="6" placeholder="Tulis pesan broadcast Anda di sini..." required class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"></textarea>
-          <p class="mt-2 text-xs text-slate-500">💡 Tips: Gunakan *bold* untuk teks tebal</p>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Konten Narasi Penyiaran</label>
+          <textarea name="pesan" rows="5" placeholder="Tulis instruksi atau info beasiswa di sini..." required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-xs text-slate-300 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none font-sans leading-relaxed"></textarea>
+          <p class="mt-2 text-[10px] text-slate-500 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i> Tips format markdown didukung: Gunakan rumus *teks tebal* untuk memberikan penekanan.</p>
         </div>
 
         <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">Lampirkan File (Opsional)</label>
-          <input type="file" name="file" class="w-full rounded-2xl border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 cursor-pointer" />
-          <p class="mt-2 text-xs text-slate-500">📎 PDF, Word, atau file lainnya</p>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dokumen Lampiran Tambahan (Opsional)</label>
+          <input type="file" name="file" class="w-full bg-slate-950/60 border border-slate-800 border-dashed rounded-xl p-3 text-xs text-slate-400 outline-none transition focus:border-indigo-500 cursor-pointer file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-indigo-500/10 file:text-indigo-400 file:hover:bg-indigo-500/20" />
         </div>
 
-        <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 text-sm font-semibold text-white transition hover:from-blue-700 hover:to-purple-700">
-          🚀 Kirim Broadcast Sekarang
+        <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-xs font-bold text-white transition hover:from-blue-500 hover:to-indigo-500 shadow-xl shadow-indigo-600/5 hover:scale-[1.01]">
+          <i class="fa-solid fa-paper-plane mr-1 text-[10px]"></i> Eksekusi dan Kirim Broadcast Sekarang
         </button>
       </form>
     </div>
 
-    <!-- USERS TABLE -->
-    <div class="rounded-3xl bg-white p-8 card-shadow">
-      <div class="mb-6 flex items-center gap-3 text-gray-800">
-        <span class="text-3xl">👥</span>
-        <h2 class="text-2xl font-bold">Daftar User (<%= users.length %>)</h2>
+    <div class="rounded-[2rem] bg-slate-900/40 border border-slate-800 p-6 md:p-8">
+      <div class="mb-6 flex items-center gap-3">
+        <span class="text-2xl">👥</span>
+        <div>
+          <h2 class="text-xl font-bold text-white">Database Akun Pendaftar</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Daftar pengguna Telegram yang telah menekan fungsi start dan terdaftar di basis data.</p>
+        </div>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-left text-sm">
+      <div class="overflow-x-auto rounded-xl border border-slate-800/80">
+        <table class="w-full border-collapse text-left text-xs">
           <thead>
-            <tr class="bg-gradient-to-r from-blue-100 to-purple-100 text-slate-700">
-              <th class="px-6 py-3 font-semibold">No</th>
-              <th class="px-6 py-3 font-semibold">Nama</th>
-              <th class="px-6 py-3 font-semibold">Username</th>
-              <th class="px-6 py-3 font-semibold">Chat ID</th>
+            <tr class="bg-slate-950 text-slate-400 border-b border-slate-800 font-mono uppercase tracking-wider text-[10px]">
+              <th class="px-6 py-4 font-bold">No</th>
+              <th class="px-6 py-4 font-bold">Nama Lengkap</th>
+              <th class="px-6 py-4 font-bold">Username Telegram</th>
+              <th class="px-6 py-4 font-bold text-right">Unique Chat ID</th>
             </tr>
           </thead>
-          <tbody>
-            <% users.forEach(function(u, i) { %>
-              <tr class="border-b bg-slate-50 hover:bg-blue-50 transition">
-                <td class="px-6 py-4"><%= i + 1 %></td>
-                <td class="px-6 py-4 font-semibold text-slate-800"><%= u.full_name || '❓ Belum diisi' %></td>
-                <td class="px-6 py-4 text-slate-600">@<%= u.username || '-' %></td>
-                <td class="px-6 py-4 font-mono text-blue-600"><%= u.chat_id %></td>
+          <tbody class="divide-y divide-slate-800/60 bg-slate-900/20">
+            <% if (users.length === 0) { %>
+              <tr>
+                <td colspan="4" class="px-6 py-8 text-center text-slate-500 font-medium italic">Belum ada akun pengguna pendaftar yang terdeteksi di database Supabase.</td>
               </tr>
-            <% }); %>
+            <% } else { %>
+              <% users.forEach(function(u, i) { %>
+                <tr class="hover:bg-slate-800/30 transition duration-150">
+                  <td class="px-6 py-4 font-mono text-slate-500"><%= i + 1 %></td>
+                  <td class="px-6 py-4 font-bold text-white"><%= u.full_name || '❓ Belum mengisi nama' %></td>
+                  <td class="px-6 py-4 text-slate-400">
+                    <% if (u.username) { %>
+                      <span class="text-indigo-400 font-semibold">@<%= u.username %></span>
+                    <% } else { %>
+                      <span class="text-slate-600 font-normal italic">tidak ada</span>
+                    <% } %>
+                  </td>
+                  <td class="px-6 py-4 font-mono text-right text-cyan-400 font-semibold tracking-wide"><%= u.chat_id %></td>
+                </tr>
+              <% }); %>
+            <% } %>
           </tbody>
         </table>
       </div>
