@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const axios = require('axios'); // 🚀 SUNTIKKAN AXIOS UNTUK KIRIM BROADCAST DIRECT
 
 // ===================================================================
 // MULTER CONFIG (Menggunakan MemoryStorage agar aman dari crash di Vercel)
@@ -8,7 +9,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /**
- * Setup Admin Routes (Mendukung Multi-role, Log Sistem, Knowledge Base AI, Tiket Pengaduan, Tambah Staff, dan Pantauan Kuota API)
+ * Setup Admin Routes (Mendukung Multi-role, Log Sistem, Knowledge Base AI, Tiket Pengaduan Terisolasi, Tambah Staff, dan Pantauan Kuota API)
  */
 function setupAdminRoutes(supabase, bot, catatLog) {
     const router = express.Router(); 
@@ -79,7 +80,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // DASHBOARD MAIN VIEW (Menghitung Statistik & Status API Key Rotator)
+    // DASHBOARD MAIN VIEW (Menghitung Statistik Sesuai Kuota & Beban Kerja)
     // ===================================================================
     router.get('/', checkLogin, async (req, res) => {
         try {
@@ -90,11 +91,18 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (userErr) throw userErr;
 
-            // 2. QUERY: Hitung jumlah antrean tiket pending dari pertanyaan luar konteks
-            const { count: pendingTicketsCount, error: ticketErr } = await supabase
+            // 2. QUERY DINAMIS: Hitung jumlah antrean tiket pending sesuai hak akses role
+            let ticketQuery = supabase
                 .from('admin_tickets')
                 .select('*', { count: 'exact', head: true })
                 .eq('status', 'pending');
+            
+            // Jika yang login adalah Staff Admin biasa, batasi hitungan beban tiket miliknya saja
+            if (req.session.adminRole !== 'kepala admin') {
+                ticketQuery = ticketQuery.eq('assigned_to', req.session.adminUser);
+            }
+
+            const { count: pendingTicketsCount, error: ticketErr } = await ticketQuery;
 
             if (ticketErr) {
                 console.error("Gagal menghitung statistik tiket:", ticketErr.message);
@@ -102,11 +110,8 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             // 🔑 3. PARSING DATA ROTASI API KEY UNTUK DIKIRIM KE DASHBOARD VISUAL
             const totalKeys = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',').length : 1;
-            
-            // Membaca index penunjuk global secara aman, default ke indeks 1 jika belum diinisialisasi
             const activeKeyIndex = global.currentKeyIndex !== undefined ? global.currentKeyIndex + 1 : 1;
             
-            // Mengirimkan seluruh variabel pendukung ke file dashboard.ejs
             res.render('admin/dashboard', { 
                 users: users || [], 
                 pendingTicketsCount: pendingTicketsCount || 0,
@@ -129,15 +134,20 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // 📌 VIEW TABEL TIKET PENGADUAN (Halaman khusus data Out of Scope)
+    // 📌 VIEW TABEL TIKET PENGADUAN (Mendukung Pembagian Beban Terisolasi)
     // ===================================================================
     router.get('/tickets', checkLogin, async (req, res) => {
         try {
-            // Menampilkan riwayat pesan yang gagal dijawab otomatis oleh AI
-            const { data: tickets, error } = await supabase
-                .from('admin_tickets')
-                .select('*')
-                .order('created_at', { ascending: false });
+            let query = supabase.from('admin_tickets').select('*');
+
+            // 🛡️ STRATEGI ISOLASI DATA:
+            // Jika role adalah 'admin' (Staff biasa), hanya tampilkan tiket yang ditugaskan ke usernamenya
+            if (req.session.adminRole !== 'kepala admin') {
+                query = query.eq('assigned_to', req.session.adminUser);
+            }
+
+            // Urutkan berdasarkan tiket terbaru masuk
+            const { data: tickets, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
 
@@ -153,22 +163,34 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // 📌 PROSES BALAS TIKET MANUAL VIA TELEGRAM (HANYA KEPALA ADMIN)
+    // 📌 PROSES BALAS TIKET MANUAL VIA TELEGRAM API (DIRECT AXIOS)
     // ===================================================================
-    router.post('/tickets/reply', checkLogin, hanyaKepalaAdmin, async (req, res) => {
+    router.post('/tickets/reply', checkLogin, async (req, res) => {
         const { ticket_id, chat_id, jawaban_admin } = req.body;
 
         try {
-            // 1. Kirim pesan balasan dari admin langsung ke Telegram pendaftar
-            if (bot && bot.telegram) {
-                await bot.telegram.sendMessage(
-                    chat_id,
-                    `✉️ *JAWABAN MANUAL DARI ADMIN*\n\n` +
-                    `Pertanyaan Anda sebelumnya telah ditinjau oleh tim administrator. Berikut jawaban resmi kami:\n\n` +
-                    `_"${jawaban_admin}"_`,
-                    { parse_mode: 'Markdown' }
-                );
+            // Validasi Keamanan: Pastikan staff biasa tidak menembak API untuk membalas tiket milik staff lain
+            if (req.session.adminRole !== 'kepala admin') {
+                const { data: cekTiket } = await supabase
+                    .from('admin_tickets')
+                    .select('assigned_to')
+                    .eq('id', ticket_id)
+                    .single();
+                
+                if (!cekTiket || cekTiket.assigned_to !== req.session.adminUser) {
+                    return res.status(403).send("Akses Ditolak: Anda tidak memiliki otoritas membalas tiket milik staff lain.");
+                }
             }
+
+            // 🚀 TEMBAK DIRECT KE TELEGRAM API RESMI UNTUK BALASAN TIKET INDIVIDUAL
+            const tokenBot = process.env.TELEGRAM_TOKEN || "8710680609:AAEzZKP-RTlA5DGQg2VEYOx66kRFt8F3Wpg";
+            await axios.post(`https://api.telegram.org/bot${tokenBot}/sendMessage`, {
+                chat_id: chat_id.toString(),
+                text: `✉️ *JAWABAN MANUAL DARI ADMIN*\n\n` +
+                      `Pertanyaan Anda sebelumnya telah ditinjau oleh tim administrator. Berikut jawaban resmi kami:\n\n` +
+                      `_"${jawaban_admin}"_`,
+                parse_mode: 'Markdown'
+            }, { timeout: 6000 });
 
             // 2. Update status tiket pengaduan di Supabase menjadi selesai ('resolved')
             const { error } = await supabase
@@ -178,12 +200,12 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // 📜 Catat riwayat penanganan keluhan ke log audit trail
+            // 📜 Catat riwayat penanganan keluhan ke log audit trail utama
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser,
                     req.session.adminRole,
-                    `Membalas manual tiket pengaduan ID ${ticket_id} ke Chat ID ${chat_id}`
+                    `[${req.session.adminRole.toUpperCase()}] Membalas manual tiket pengaduan ID ${ticket_id} ke Chat ID ${chat_id}`
                 );
             }
 
@@ -195,10 +217,12 @@ function setupAdminRoutes(supabase, bot, catatLog) {
     });
 
     // ===================================================================
-    // BROADCAST TELEGRAM (Bisa diakses oleh Kepala Admin dan Admin Staff)
+    // 📢 BROADCAST TELEGRAM AUTOMATION (PENGIRIMAN AKURAT & KALIBRASI LOG)
     // ===================================================================
     router.post('/broadcast', checkLogin, upload.single('file'), async (req, res) => {
         const { pesan, target_chat_id } = req.body;
+        const tokenBot = process.env.TELEGRAM_TOKEN || "8710680609:AAEzZKP-RTlA5DGQg2VEYOx66kRFt8F3Wpg";
+
         try {
             let users;
             if (target_chat_id) {
@@ -212,28 +236,56 @@ function setupAdminRoutes(supabase, bot, catatLog) {
             let success = 0;
             let failed = 0;
 
+            // Eksekusi perulangan pengiriman massal langsung menembak Telegram API core
             for (const user of users) {
-                try {
-                    if (bot && bot.telegram) {
-                        await bot.telegram.sendMessage(
-                            user.chat_id,
-                            `📢 *INFO TERBARU*\n\n${pesan}`,
-                            { parse_mode: 'Markdown' }
-                        );
+                let textSent = false;
+                let docSent = true; // Default true jika tidak ada file yang dikirim
 
-                        if (req.file) {
-                            await bot.telegram.sendDocument(user.chat_id, {
-                                source: req.file.buffer,
-                                filename: req.file.originalname
-                            });
-                        }
-                        success++;
+                // 1. Jalur Kirim Pesan Teks Utama
+                try {
+                    const resText = await axios.post(`https://api.telegram.org/bot${tokenBot}/sendMessage`, {
+                        chat_id: user.chat_id.toString(),
+                        text: `📢 *INFO TERBARU BEASISWA*\n\n${pesan}`,
+                        parse_mode: 'Markdown'
+                    }, { timeout: 5000 });
+
+                    if (resText.status === 200) {
+                        textSent = true;
                     }
-                    await new Promise(r => setTimeout(r, 1500));
-                } catch (err) {
-                    failed++;
-                    console.log("Gagal kirim ke:", user.chat_id, err.message);
+                } catch (textErr) {
+                    console.error(`Gagal teks ke ${user.chat_id}:`, textErr.message);
+                    textSent = false;
                 }
+
+                // 2. Jalur Kirim Lampiran File Berkas Dokumen (Hanya jika diunggah operator)
+                if (textSent && req.file) {
+                    try {
+                        const FormData = require('form-data');
+                        const form = new FormData();
+                        form.append('chat_id', user.chat_id.toString());
+                        form.append('document', req.file.buffer, { filename: req.file.originalname });
+
+                        const resDoc = await axios.post(`https://api.telegram.org/bot${tokenBot}/sendDocument`, form, {
+                            headers: form.getHeaders(),
+                            timeout: 10000
+                        });
+                        
+                        docSent = (resDoc.status === 200);
+                    } catch (docErr) {
+                        console.error(`Gagal dokumen ke ${user.chat_id}:`, docErr.message);
+                        docSent = false;
+                    }
+                }
+
+                // Kalkulasi counter akhir berdasarkan status riil pengiriman API
+                if (textSent && docSent) {
+                    success++;
+                } else {
+                    failed++;
+                }
+                
+                // Jeda anti-spam aman 1 detik per user
+                await new Promise(r => setTimeout(r, 1000));
             }
 
             // 📜 1. CATAT KE TABEL broadcast_logs
@@ -258,6 +310,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 );
             }
 
+            // Kembalikan hasil kalkulasi riil yang sudah dikalibrasi ke UI Dashboard
             res.render('admin/broadcast-result', {
                 success,
                 failed,
@@ -265,7 +318,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 successRate: users.length > 0 ? Math.round((success / users.length) * 100) : 0
             });
         } catch (err) {
-            console.log(err);
+            console.error("Fatal Broadcast Error:", err.message);
             res.render('admin/broadcast-error');
         }
     });
@@ -283,7 +336,6 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // Melemparkan objek data 'req' agar halaman EJS bisa membaca status '?user_added=1' di URL
             res.render('admin/ai-config', { 
                 config, 
                 req: req,
@@ -313,7 +365,6 @@ function setupAdminRoutes(supabase, bot, catatLog) {
 
             if (error) throw error;
 
-            // 📜 CATAT LOG MODIFIKASI AI
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser, 
@@ -335,7 +386,6 @@ function setupAdminRoutes(supabase, bot, catatLog) {
         const { new_username, new_password, new_role } = req.body;
 
         try {
-            // Suntikkan data akun baru ke tabel 'admins' di Supabase
             const { error } = await supabase
                 .from('admins')
                 .insert({
@@ -352,7 +402,6 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 throw error;
             }
 
-            // 📜 Catat aktivitas penambahan staff ke log audit trail
             if (catatLog) {
                 await catatLog(
                     req.session.adminUser,
@@ -503,7 +552,7 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 await catatLog(
                     req.session.adminUser, 
                     req.session.adminRole, 
-                    'Mengeksport Berkas Dokumen Audit Log Format Spreadsheet (.csv)'
+                    `Mengeksport Berkas Dokumen Audit Log Format Spreadsheet (.csv)`
                 );
             }
 

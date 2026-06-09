@@ -27,7 +27,6 @@ function setupBotHandlers(botInstance, db) {
             console.error('Gagal simpan subscriber:', err.message);
         }
 
-        // Mengirim pesan selamat datang beserta tombol FAQ interaktif yang menempel di bawah teks
         return ctx.replyWithMarkdown(
             `Selamat Datang *${firstName}* di Bot Resmi Beasiswa Berani Cerdas! 🎓\n\n` +
             `Silakan ajukan pertanyaan Anda langsung di sini. AI akan menjawab secara otomatis berdasarkan basis pengetahuan resmi.\n\n` +
@@ -54,7 +53,7 @@ function setupBotHandlers(botInstance, db) {
     // 3. HANDLER UNTUK MERESPONS KLIK TOMBOL FAQ (BYPASS AI - 100% GRATIS TOKEN)
     // ====================================================================
     botInstance.action('faq_syarat', async (ctx) => {
-        await ctx.answerCbQuery(); // Menghilangkan efek loading di tombol Telegram
+        await ctx.answerCbQuery();
         return ctx.replyWithMarkdown(
             `📌 *SYARAT UTAMA PENDAFTARAN BEASISWA BERANI CERDAS:*\n\n` +
             `1. Mahasiswa aktif D3/D4/S1 (Minimal sedang menempuh semester 2, maksimal semester 8).\n` +
@@ -95,7 +94,6 @@ function setupBotHandlers(botInstance, db) {
     // ====================================================================
     // 3B. BYPASS SAPAAN RAMAH (ANTI MASUK TIKET OUT-OF-SCOPE ADMIN)
     // ====================================================================
-    // Menggunakan regex fleksibel yang menangkap variasi sapaan tanpa peduli huruf besar/kecil
     botInstance.hears(/^(halo|hai|selamat pagi|selamat siang|selamat sore|selamat malam|p|assalamualaikum|permisi)/i, (ctx) => {
         const firstName = ctx.from.first_name || 'User';
         return ctx.replyWithMarkdown(
@@ -118,7 +116,6 @@ function setupBotHandlers(botInstance, db) {
             return ctx.reply("Maaf, informasi profil personal tidak tersedia di sistem ini. Silakan ajukan pertanyaan seputar informasi resmi Beasiswa Berani Cerdas.");
         }
 
-        // Tampilkan indikator mengetik di Telegram agar interaktif
         await ctx.sendChatAction('typing');
 
         try {
@@ -180,17 +177,35 @@ function setupBotHandlers(botInstance, db) {
 
                 if (db) {
                     try {
+                        // 👥 3A. LOGIKA OTOMATIS PEMBAGIAN KUOTA TIKET (LOAD-BALANCER)
+                        // Ambil daftar admin yang memiliki role 'admin' (Staff biasa)
+                        const { data: daftarStaff } = await db
+                            .from('admins')
+                            .select('username')
+                            .eq('role', 'admin');
+
+                        let staffDitugaskan = null;
+
+                        if (daftarStaff && daftarStaff.length > 0) {
+                            // Pilih satu staff secara acak (Round-Robin Randomization)
+                            const indexAcak = Math.floor(Math.random() * daftarStaff.length);
+                            staffDitugaskan = daftarStaff[indexAcak].username;
+                        }
+
+                        // 3B. Memasukkan data tiket baru lengkap dengan penanggung jawab staff
                         await db.from('admin_tickets').insert({
                             chat_id: chatId.toString(),
                             sender_name: `${firstName} (@${username})`,
                             user_question: userMessage,
                             status: 'pending',
+                            assigned_to: staffDitugaskan, // ──► SUNTIKKAN USERNAME STAFF OTOMATIS KE DATABASE
                             created_at: new Date()
                         });
                         
                         console.log("\n--------------------------------------------------------");
                         console.log(`💡 [LOG FILTER AI] User [${firstName}] bertanya di luar konteks!`);
                         console.log(`💬 Isi Pertanyaan : "${userMessage}"`);
+                        console.log(`🎯 Ditugaskan ke  : Admin Staff [${staffDitugaskan || 'Belum Ada Staff'}]`);
                         console.log(`➡️  Tindakan Sistem: Otomatis mengisolasi data dan meneruskan ke Supabase.`);
                         console.log("--------------------------------------------------------\n");
 

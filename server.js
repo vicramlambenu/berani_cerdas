@@ -5,10 +5,8 @@ const session = require('express-session');
 const setupAdminRoutes = require('./admin');
 const registerApiRoutes = require('./routes/apiRoutes');
 const { supabase } = require('./supabaseClient');
-const { initTelegramBot, setupBotHandlers } = require('./telegramBot');
 const catatLog = require('./services/logService');
 const {
-    TELEGRAM_TOKEN,
     SESSION_SECRET,
     PORT,
     NODE_ENV,
@@ -36,12 +34,11 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // ====================================================================
-// 🤖 INISIALISASI & SETUP HANDLER BOT TELEGRAM
+// 🤖 STATUS BOT TELEGRAM DI EXPRESS (DINONAKTIFKAN SECARA BERSIH)
 // ====================================================================
-const bot = initTelegramBot(TELEGRAM_TOKEN);
-if (bot && supabase) {
-    setupBotHandlers(bot, supabase);
-}
+// Kita setel ke null agar jembatan router admin di bawah tidak mengalami crash/break.
+// Urusan Telegram kini dihandle 100% secara mandiri dan langsung oleh OpenClaw Engine.
+const bot = null; 
 
 // ====================================================================
 // ⚙️ ROUTING MANAGEMENT
@@ -97,7 +94,7 @@ app.get('/', (req, res) => {
       
       <header class="text-center mb-12">
         <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-6">
-          <i class="fa-solid var(--fa-solid-bolt) fa-bolt animate-pulse"></i> Next-Gen AI Integration
+          <i class="fa-solid fa-bolt animate-pulse"></i> Next-Gen AI Integration
         </div>
         <h1 class="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-tight">
           Platform Sistem <span class="text-gradient">Berani Cerdas</span>
@@ -161,26 +158,15 @@ app.get('/', (req, res) => {
 });
 
 // ====================================================================
-// 🚀 EKSEKUSI SERVER & POLLING ELEMEN LOKAL
+// 🚀 EKSEKUSI RUNTIME BACKEND SERVER
 // ====================================================================
 if (NODE_ENV !== 'production') {
     app.listen(PORT, async () => {
         console.log(`========================================================`);
         console.log(`🚀 SERVER UTAMA AKTIF DI PORT: http://localhost:${PORT}`);
         console.log(`========================================================`);
-        
-        try {
-            if (bot && bot.telegram) {
-                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                console.log("🧹 Memori Webhook lama berhasil dibersihkan dari server Telegram.");
-                
-                bot.launch();
-                console.log("🤖 BOT TELEGRAM SUKSES BERJALAN DALAM MODE POLLING LOKAL!");
-                console.log("👉 Menunggu instruksi /start atau pertanyaan dari user...");
-            }
-        } catch (botErr) {
-            console.error("🚨 Gagal mengaktifkan mesin polling bot:", botErr.message);
-        }
+        console.log("🔒 Telegram Polling di Express dinonaktifkan demi stabilitas.");
+        console.log("👉 Manajemen obrolan Telegram sepenuhnya dijalankan oleh OpenClaw.");
         console.log(`========================================================\n`);
     });
 }
