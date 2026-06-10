@@ -182,8 +182,10 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 }
             }
 
-            // 🚀 TEMBAK DIRECT KE TELEGRAM API RESMI UNTUK BALASAN TIKET INDIVIDUAL
-            const tokenBot = process.env.TELEGRAM_TOKEN || "8710680609:AAEzZKP-RTlA5DGQg2VEYOx66kRFt8F3Wpg";
+            // 🚀 SOLUSI: Menggunakan token bot yang sudah pasti aktif dan terverifikasi
+            const tokenBot = "8710680609:AAEzZKP-RTlA5DGQg2VEYOx66kRFt8F3Wpg";
+            
+            // Tembak langsung menggunakan Axios ke core server telegram
             await axios.post(`https://api.telegram.org/bot${tokenBot}/sendMessage`, {
                 chat_id: chat_id.toString(),
                 text: `✉️ *JAWABAN MANUAL DARI ADMIN*\n\n` +
@@ -209,10 +211,12 @@ function setupAdminRoutes(supabase, bot, catatLog) {
                 );
             }
 
+            // Mengembalikan user kembali ke halaman daftar tiket dengan parameter sukses
             res.redirect('/admin/tickets?success=1');
         } catch (err) {
             console.error("Gagal membalas tiket pengaduan:", err.message);
-            res.status(500).send("Terjadi kesalahan saat mengirim jawaban manual.");
+            // Menghilangkan halaman teks putih polos lama, ganti dengan redirect aman ke halaman tiket beserta alert error
+            res.redirect('/admin/tickets?error_reply=1');
         }
     });
 

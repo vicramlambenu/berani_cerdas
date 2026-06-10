@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berani Cerdas — Admin Management Console</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    /* Efek transisi warna halus agar mata orang tua tidak kaget saat berpindah tema */
+    .theme-transition {
+      transition: background-color 0.3s ease, border-color 0.3s ease, text-color 0.3s ease, box-shadow 0.3s ease;
+    }
+  </style>
+
+  <script>
+    // Membaca memori browser di awal agar halaman tidak berkedip hitam-putih saat di-refresh
+    if (localStorage.getItem('color-theme') === 'light' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+</head>
+
+<body class="bg-slate-50 text-slate-800 dark:bg-[#0b0f19] dark:text-slate-300 min-h-screen theme-transition flex flex-col">
+
+  <nav class="bg-white dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 backdrop-blur-xl sticky top-0 z-50 theme-transition">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+            <i class="fa-solid fa-graduation-cap text-sm"></i>
+          </div>
+          <div>
+            <span class="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">BERANI CERDAS</span>
+            <span class="hidden sm:inline-block ml-1.5 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Console</span>
+          </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-1 text-sm font-medium">
+          <a href="/admin" class="px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition">Dashboard</a>
+          <a href="/admin/tickets" class="px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition">Tiket Pengaduan</a>
+          <a href="/admin/ai-config" class="px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition">Konfigurasi AI</a>
+          <a href="/admin/logs" class="px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition">Log Audit</a>
+        </div>
+
+        <div class="flex items-center gap-3">
+          
+          <button id="theme-toggle" type="button" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 shadow-sm text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-all duration-200 text-xs font-extrabold tracking-wide cursor-pointer focus:outline-none">
+            <span id="theme-toggle-light-icon" class="hidden text-amber-600"><i class="fa-solid fa-sun mr-1"></i> MODE TERANG</span>
+            <span id="theme-toggle-dark-icon" class="hidden text-indigo-400"><i class="fa-solid fa-moon mr-1"></i> MODE GELAP</span>
+          </button>
+
+          <a href="/admin/logout" class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-600 text-red-500 hover:text-white transition-all duration-200 text-sm" title="Keluar dari Sistem">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </a>
+
+        </div>
+
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
