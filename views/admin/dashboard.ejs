@@ -20,21 +20,30 @@
       <h2 class="mt-4 text-4xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-mono"><%= typeof pendingTicketsCount !== 'undefined' ? pendingTicketsCount : 0 %></h2>
     </div>
 
-    <div class="rounded-3xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700/50 transition shadow-sm">
-      <div class="flex justify-between items-start">
-        <p class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">API Router Monitor</p>
-        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-md shadow-emerald-500"></span>
+    <div class="rounded-3xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/60 p-6 shadow-sm theme-transition relative overflow-hidden flex flex-col justify-between">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full pointer-events-none"></div>
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">API Router Monitor</span>
+              <span class="flex h-2 w-2 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            <div class="mt-4 flex items-center gap-3">
+              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xl shadow-inner">
+                <i class="fa-solid fa-circle-nodes"></i>
+              </div>
+              <div>
+                <p class="text-lg font-black text-slate-900 dark:text-white tracking-tight">Gateway Active</p>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Engine Ready</p>
+              </div>
+            </div>
+          </div>
+          <p class="mt-4 text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/60 rounded-xl p-2.5 border border-slate-200 dark:border-slate-800/80 font-mono">
+            🔑 Key Aktif: <span class="text-indigo-600 dark:text-indigo-400 font-extrabold"><%= typeof totalApiKeys !== 'undefined' ? totalApiKeys : (global.totalApiKeysCount || 1) %> Pool</span>
+          </p>
       </div>
-      <div>
-        <h2 class="mt-3 text-lg font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-          🟢 Gateway Active
-        </h2>
-        <p class="mt-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-950/60 rounded-xl p-2 border border-slate-200 dark:border-slate-800/80 font-mono">
-          🔑 Key: <span class="text-indigo-600 dark:text-indigo-400 font-extrabold"><%= activeKeyIndex %></span> / <span class="text-slate-500 font-extrabold"><%= totalApiKeys %></span> (Pool)
-        </p>
-      </div>
-    </div>
-
     <div class="rounded-3xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700/50 transition shadow-sm">
       <div class="flex justify-between items-start">
         <p class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Broadcast Engine</p>
